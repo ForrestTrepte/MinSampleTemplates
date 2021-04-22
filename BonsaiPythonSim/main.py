@@ -31,7 +31,6 @@ from microsoft_bonsai_api.simulator.generated.models import (
 from azure.core.exceptions import HttpResponseError
 from functools import partial
 
-from policies import random_policy, brain_policy
 from sim import cartpole
 
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -203,48 +202,6 @@ def env_setup(env_file: str = ".env"):
     access_key = os.getenv("SIM_ACCESS_KEY")
 
     return workspace, access_key
-
-
-def test_policy(
-    num_episodes: int = 10,
-    num_iterations: int = 200,
-    log_iterations: bool = False,
-    policy=random_policy,
-    policy_name: str = "random",
-):
-    """Test a policy using random actions over a fixed number of episodes
-
-    Parameters
-    ----------
-    num_episodes : int, optional
-        number of iterations to run, by default 10
-    """
-
-    current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    log_file_name = current_time + "_" + policy_name + "_log.csv"
-    sim = TemplateSimulatorSession(
-        log_data=log_iterations, log_file_name=log_file_name
-    )
-    # test_config = {"length": 1.5}
-    for episode in range(num_episodes):
-        iteration = 0
-        terminal = False
-        # When testing, initialize throughout the range.
-        config = {"initial_cart_position": random.uniform(-0.9, 0.9)}
-        sim_state = sim.episode_start(config=config)
-        sim_state = sim.get_state()
-        while not terminal:
-            action = policy(sim_state)
-            sim.episode_step(action)
-            sim_state = sim.get_state()
-            if log_iterations:
-                sim.log_iterations(sim_state, action, episode, iteration)
-            print(f"Running iteration #{iteration} for episode #{episode}")
-            print(f"Observations: {sim_state}")
-            iteration += 1
-            terminal = iteration >= num_iterations
-
-    return sim
 
 
 def main(
@@ -516,9 +473,6 @@ if __name__ == "__main__":
     )
 
     group = parser.add_mutually_exclusive_group()
-    group.add_argument(
-        "--test-random", action="store_true",
-    )
 
     group.add_argument(
         "--test-exported",
@@ -555,29 +509,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.test_random:
-        test_policy(
-            log_iterations=args.log_iterations, policy=random_policy
-        )
-    elif args.test_exported:
-        port = args.test_exported
-        url = f"http://localhost:{port}"
-        print(f"Connecting to exported brain running at {url}...")
-        trained_brain_policy = partial(brain_policy, exported_brain_url=url)
-        test_policy(
-            log_iterations=args.log_iterations,
-            policy=trained_brain_policy,
-            policy_name="exported",
-            num_iterations=args.iteration_limit,
-        )
-    else:
-        main(
-            config_setup=args.config_setup,
-            log_iterations=args.log_iterations,
-            sim_speed=args.sim_speed,
-            sim_speed_variance=args.sim_speed_variance,
-            env_file=args.env_file,
-            workspace=args.workspace,
-            accesskey=args.accesskey,
-        )
-
+    main(
+        config_setup=args.config_setup,
+        log_iterations=args.log_iterations,
+        sim_speed=args.sim_speed,
+        sim_speed_variance=args.sim_speed_variance,
+        env_file=args.env_file,
+        workspace=args.workspace,
+        accesskey=args.accesskey,
+    )
