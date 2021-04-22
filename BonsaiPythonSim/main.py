@@ -97,10 +97,6 @@ class TemplateSimulatorSession:
             Returns float of current values from the simulator
         """
         state = self.simulator.state.copy()
-        # Add an extra field needed for go-to-point experiments
-        state["distance_to_target"] = (
-            state["target_pole_position"] - state["cart_position"]
-        )
         return state
 
     def halted(self) -> bool:
@@ -134,7 +130,7 @@ class TemplateSimulatorSession:
         # Keep the config around so we can log it later
         self.config = config
 
-        self.simulator.reset(**config)
+        self.simulator.reset(config)
 
     def log_iterations(
         self,
@@ -186,7 +182,7 @@ class TemplateSimulatorSession:
         action : Dict
             An action to take to modulate environment.
         """
-        self.simulator.step(action["command"])
+        self.simulator.step(action)
         if self.render:
             self.sim_render()
 
