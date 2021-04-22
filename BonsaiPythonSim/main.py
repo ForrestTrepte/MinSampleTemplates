@@ -58,7 +58,6 @@ def ensure_log_dir(log_full_path):
 class TemplateSimulatorSession:
     def __init__(
         self,
-        render: bool = False,
         env_name: str = "Cartpole",
         log_data: bool = False,
         log_file_name: str = None,
@@ -67,8 +66,6 @@ class TemplateSimulatorSession:
 
         Parameters
         ----------
-        render : bool, optional
-            Whether to visualize episodes during training, by default False
         env_name : str, optional
             Name of simulator interface, by default "Cartpole"
         log_data: bool, optional
@@ -79,7 +76,6 @@ class TemplateSimulatorSession:
         self.simulator = cartpole.CartPole()
         self.count_view = False
         self.env_name = env_name
-        self.render = render
         self.log_data = log_data
         if not log_file_name:
             current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -175,28 +171,7 @@ class TemplateSimulatorSession:
             )
 
     def episode_step(self, action: Dict):
-        """Step through the environment for a single iteration.
-
-        Parameters
-        ----------
-        action : Dict
-            An action to take to modulate environment.
-        """
         self.simulator.step(action)
-        if self.render:
-            self.sim_render()
-
-    def sim_render(self):
-        from sim import render
-
-        if self.count_view == False:
-            self.viewer = render.Viewer()
-            self.viewer.model = self.simulator
-            self.count_view = True
-
-        self.viewer.update()
-        if self.viewer.has_exit:
-            sys.exit(0)
 
 
 def env_setup(env_file: str = ".env"):
@@ -232,7 +207,6 @@ def env_setup(env_file: str = ".env"):
 
 def test_policy(
     num_episodes: int = 10,
-    render: bool = True,
     num_iterations: int = 200,
     log_iterations: bool = False,
     policy=random_policy,
@@ -249,7 +223,7 @@ def test_policy(
     current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     log_file_name = current_time + "_" + policy_name + "_log.csv"
     sim = TemplateSimulatorSession(
-        render=render, log_data=log_iterations, log_file_name=log_file_name
+        log_data=log_iterations, log_file_name=log_file_name
     )
     # test_config = {"length": 1.5}
     for episode in range(num_episodes):
@@ -274,7 +248,6 @@ def test_policy(
 
 
 def main(
-    render: bool = False,
     log_iterations: bool = False,
     config_setup: bool = False,
     sim_speed: int = 0,
@@ -287,8 +260,6 @@ def main(
 
     Parameters
     ----------
-    render : bool, optional
-        visualize steps in environment, by default True, by default False
     log_iterations: bool, optional
         log iterations during training to a CSV file
     config_setup: bool, optional
@@ -340,7 +311,7 @@ def main(
             )
 
     # Grab standardized way to interact with sim API
-    sim = TemplateSimulatorSession(render=render, log_data=log_iterations)
+    sim = TemplateSimulatorSession(log_data=log_iterations)
 
     # Configure client to interact with Bonsai service
     config_client = BonsaiClientConfig()
@@ -511,9 +482,6 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Bonsai and Simulator Integration...")
     parser.add_argument(
-        "--render", action="store_true", default=False, help="Render training episodes",
-    )
-    parser.add_argument(
         "--log-iterations",
         action="store_true",
         default=False,
@@ -589,7 +557,7 @@ if __name__ == "__main__":
 
     if args.test_random:
         test_policy(
-            render=args.render, log_iterations=args.log_iterations, policy=random_policy
+            log_iterations=args.log_iterations, policy=random_policy
         )
     elif args.test_exported:
         port = args.test_exported
@@ -597,7 +565,6 @@ if __name__ == "__main__":
         print(f"Connecting to exported brain running at {url}...")
         trained_brain_policy = partial(brain_policy, exported_brain_url=url)
         test_policy(
-            render=args.render,
             log_iterations=args.log_iterations,
             policy=trained_brain_policy,
             policy_name="exported",
@@ -606,7 +573,6 @@ if __name__ == "__main__":
     else:
         main(
             config_setup=args.config_setup,
-            render=args.render,
             log_iterations=args.log_iterations,
             sim_speed=args.sim_speed,
             sim_speed_variance=args.sim_speed_variance,
