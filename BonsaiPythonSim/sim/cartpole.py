@@ -20,3 +20,7 @@ class CartPole:
         for action_key, action_value in self.action.items():
             state['state_' + action_key] = action_value
         return state
+
+    @property
+    def halted(self):
+        return False

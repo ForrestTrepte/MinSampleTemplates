@@ -26,26 +26,6 @@ from sim import cartpole
 default_config = {}
 
 
-class TemplateSimulatorSession:
-    def __init__(self, env_name: str = "BonsaiPythonSim"):
-        self.simulator = cartpole.CartPole()
-        self.env_name = env_name
-
-    def get_state(self) -> Dict[str, float]:
-        state = self.simulator.state.copy()
-        return state
-
-    def halted(self) -> bool:
-        return False
-
-    def episode_start(self, config: Dict = None) -> None:
-        self.config = config
-        self.simulator.reset(config)
-
-    def episode_step(self, action: Dict):
-        self.simulator.step(action)
-
-
 def env_setup():
     return workspace, access_key
 
@@ -54,8 +34,7 @@ def main():
     workspace = os.getenv("SIM_WORKSPACE")
     accesskey = os.getenv("SIM_ACCESS_KEY")
 
-    # Grab standardized way to interact with sim API
-    sim = TemplateSimulatorSession()
+    simulator = cartpole.CartPole()
 
     # Configure client to interact with Bonsai service
     config_client = BonsaiClientConfig()
@@ -67,7 +46,7 @@ def main():
 
     # Create simulator session and init sequence id
     registration_info = SimulatorInterface(
-        name=sim.env_name,
+        name="BonsaiPythonSim",
         timeout=interface["timeout"],
         simulator_context=config_client.simulator_context,
         description=interface["description"],
@@ -107,10 +86,8 @@ def main():
 
     try:
         while True:
-            # Advance by the new state depending on the event type
-            # TODO: it's risky not doing doing `get_state` without first initializing the sim
             sim_state = SimulatorState(
-                sequence_id=sequence_id, state=sim.get_state(), halted=sim.halted(),
+                sequence_id=sequence_id, state=simulator.state.copy(), halted=simulator.halted,
             )
             try:
                 event = client.session.advance(
@@ -150,12 +127,12 @@ def main():
                 print("Idling...")
             elif event.type == "EpisodeStart":
                 print(event.episode_start.config)
-                sim.episode_start(event.episode_start.config)
+                simulator.reset(event.episode_start.config)
                 episode += 1
             elif event.type == "EpisodeStep":
                 iteration += 1
                 delay = 0.0
-                sim.episode_step(event.episode_step.action)
+                simulator.step(event.episode_step.action)
             elif event.type == "EpisodeFinish":
                 print("Episode Finishing...")
                 iteration = 0
