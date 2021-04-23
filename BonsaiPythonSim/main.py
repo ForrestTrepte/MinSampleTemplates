@@ -39,7 +39,6 @@ def main():
     config_client = BonsaiClientConfig()
     client = BonsaiClient(config_client)
 
-    # Create simulator session and init sequence id
     registration_info = SimulatorInterface(
         name="BonsaiPythonSim",
         timeout=60,
@@ -47,35 +46,18 @@ def main():
         description=None,
     )
 
-    def CreateSession(
-        registration_info: SimulatorInterface, config_client: BonsaiClientConfig
-    ):
-        try:
-            print(
-                "config: {}, {}".format(config_client.server, config_client.workspace)
-            )
-            registered_session: SimulatorSessionResponse = client.session.create(
-                workspace_name=config_client.workspace, body=registration_info
-            )
-            print("Registered simulator. {}".format(registered_session.session_id))
+    try:
+        print("config: {}, {}".format(config_client.server, config_client.workspace))
+        registered_session: SimulatorSessionResponse = client.session.create(workspace_name=config_client.workspace, body=registration_info)
+        print("Registered simulator. {}".format(registered_session.session_id))
+    except HttpResponseError as ex:
+        print("HttpResponseError in Registering session: StatusCode: {}, Error: {}, Exception: {}".format(ex.status_code, ex.error.message, ex))
+        raise ex
+    except Exception as ex:
+        print("UnExpected error: {}, Most likely, it's some network connectivity issue, make sure you are able to reach bonsai platform from your network.".format(ex))
+        raise ex
 
-            return registered_session, 1
-        except HttpResponseError as ex:
-            print(
-                "HttpResponseError in Registering session: StatusCode: {}, Error: {}, Exception: {}".format(
-                    ex.status_code, ex.error.message, ex
-                )
-            )
-            raise ex
-        except Exception as ex:
-            print(
-                "UnExpected error: {}, Most likely, it's some network connectivity issue, make sure you are able to reach bonsai platform from your network.".format(
-                    ex
-                )
-            )
-            raise ex
-
-    registered_session, sequence_id = CreateSession(registration_info, config_client)
+    sequence_id = 1
     episode = 0
     iteration = 0
 
