@@ -36,20 +36,15 @@ def main():
 
     simulator = cartpole.CartPole()
 
-    # Configure client to interact with Bonsai service
     config_client = BonsaiClientConfig()
     client = BonsaiClient(config_client)
-
-    # # Load json file as simulator integration config type file
-    with open("cartpole_description.json") as file:
-        interface = json.load(file)
 
     # Create simulator session and init sequence id
     registration_info = SimulatorInterface(
         name="BonsaiPythonSim",
-        timeout=interface["timeout"],
+        timeout=60,
         simulator_context=config_client.simulator_context,
-        description=interface["description"],
+        description=None,
     )
 
     def CreateSession(
