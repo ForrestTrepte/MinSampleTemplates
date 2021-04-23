@@ -1,7 +1,3 @@
-import math
-import random
-from collections import namedtuple
-
 class CartPole:
     def __init__(self):
         self.reset({ 'config_val': 0})

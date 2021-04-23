@@ -1,15 +1,5 @@
 #!/usr/bin/env python3
 
-"""
-MSFT Bonsai SDK3 Template for Simulator Integration using Python
-Copyright 2020 Microsoft
-
-Usage:
-  For registering simulator with the Bonsai service for training:
-    python simulator_integration.py   
-    Then connect your registered simulator to a Brain via UI, or using the CLI: `bonsai simulator unmanaged connect -b <brain-name> -a <train-or-assess> -c BalancePole --simulator-name Cartpole
-"""
-
 import datetime
 import json
 import os
@@ -33,55 +23,14 @@ from functools import partial
 
 from sim import cartpole
 
-DIR_PATH = os.path.dirname(os.path.realpath(__file__))
-LOG_PATH = "logs"
 default_config = {}
 
 
-def ensure_log_dir(log_full_path):
-    """
-    Ensure the directory for logs exists — create if needed.
-    """
-    print(f"logfile: {log_full_path}")
-    logs_directory = pathlib.Path(log_full_path).parent.absolute()
-    print(f"Checking {logs_directory}")
-    if not pathlib.Path(logs_directory).exists():
-        print(
-            "Directory does not exist at {0}, creating now...".format(
-                str(logs_directory)
-            )
-        )
-        logs_directory.mkdir(parents=True, exist_ok=True)
-
-
 class TemplateSimulatorSession:
-    def __init__(
-        self,
-        env_name: str = "Cartpole",
-        log_data: bool = False,
-        log_file_name: str = None,
-    ):
-        """Simulator Interface with the Bonsai Platform
-
-        Parameters
-        ----------
-        env_name : str, optional
-            Name of simulator interface, by default "Cartpole"
-        log_data: bool, optional
-            Whether to log data, by default False
-        log_file_name : str, optional
-            where to log data, by default None. If not specified, will generate a name.
-        """
+    def __init__(self, env_name: str = "BonsaiPythonSim"):
         self.simulator = cartpole.CartPole()
         self.count_view = False
         self.env_name = env_name
-        self.log_data = log_data
-        if not log_file_name:
-            current_time = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-            log_file_name = current_time + "_" + env_name + "_log.csv"
-
-        self.log_full_path = os.path.join(LOG_PATH, log_file_name)
-        ensure_log_dir(self.log_full_path)
 
     def get_state(self) -> Dict[str, float]:
         """Extract current states from the simulator
@@ -105,69 +54,8 @@ class TemplateSimulatorSession:
         return False
 
     def episode_start(self, config: Dict = None) -> None:
-        """Initialize simulator environment using scenario paramters from inkling. Note, `simulator.reset()` initializes the simulator parameters for initial positions and velocities of the cart and pole using a random sampler. See the source for details.
-
-        Parameters
-        ----------
-        config : Dict, optional. The following keys are supported:
-            - cart_mass   # (kg)
-            - pole_mass   # (kg)
-            - pole_length  # (m)
-            - initial_cart_position  # (m)
-            - initial_cart_velocity  # (m/s)
-            - initial_pole_angle  # (rad)
-            - initial_angular_velocity  # (rad/s)
-            - target_pole_position  # (m)
-        """
-        # Reset the sim, passing fields from config
-        if config is None:
-            config = default_config
-        # Keep the config around so we can log it later
         self.config = config
-
         self.simulator.reset(config)
-
-    def log_iterations(
-        self,
-        state,
-        action,
-        episode: int = 0,
-        iteration: int = 1,
-        sim_speed_delay: float = 0.0,
-    ):
-        """Log iterations during training to a CSV.
-
-        Parameters
-        ----------
-        state : Dict
-        action : Dict
-        episode : int, optional
-        iteration : int, optional
-        sim_speed_delay : float, optional
-        """
-
-        import pandas as pd
-
-        def add_prefixes(d, prefix: str):
-            return {f"{prefix}_{k}": v for k, v in d.items()}
-
-        state = add_prefixes(state, "state")
-        action = add_prefixes(action, "action")
-        config = add_prefixes(self.config, "config")
-        data = {**state, **action, **config}
-        data["episode"] = episode
-        data["iteration"] = iteration
-        data["sim_speed_delay"] = sim_speed_delay
-        log_df = pd.DataFrame(data, index=[0])
-
-        if os.path.exists(self.log_full_path):
-            log_df.to_csv(
-                path_or_buf=self.log_full_path, mode="a", header=False, index=False
-            )
-        else:
-            log_df.to_csv(
-                path_or_buf=self.log_full_path, mode="w", header=True, index=False
-            )
 
     def episode_step(self, action: Dict):
         self.simulator.step(action)
@@ -205,7 +93,6 @@ def env_setup(env_file: str = ".env"):
 
 
 def main(
-    log_iterations: bool = False,
     config_setup: bool = False,
     sim_speed: int = 0,
     sim_speed_variance: int = 0,
@@ -213,26 +100,6 @@ def main(
     workspace: str = None,
     accesskey: str = None,
 ):
-    """Main entrypoint for running simulator connections
-
-    Parameters
-    ----------
-    log_iterations: bool, optional
-        log iterations during training to a CSV file
-    config_setup: bool, optional
-        if enabled then uses a local `.env` file to find sim workspace id and access_key
-    sim_speed: int, optional
-        the average delay to use, default = 0
-    sim_speed_variance: int, optional
-        the variance for sim delay
-    env_file: str, optional
-        if config_setup True, then where the environment variable for lookup exists
-    workspace: str, optional
-        optional flag from CLI for workspace to override
-    accesskey: str, optional
-        optional flag from CLI for accesskey to override
-    """
-
     # check if workspace or access-key passed in CLI
     use_cli_args = all([workspace, accesskey])
 
@@ -268,7 +135,7 @@ def main(
             )
 
     # Grab standardized way to interact with sim API
-    sim = TemplateSimulatorSession(log_data=log_iterations)
+    sim = TemplateSimulatorSession()
 
     # Configure client to interact with Bonsai service
     config_client = BonsaiClientConfig()
@@ -394,14 +261,6 @@ def main(
                         print("sim delay: {}s".format(delay))
                         time.sleep(delay)
                 sim.episode_step(event.episode_step.action)
-                if sim.log_data:
-                    sim.log_iterations(
-                        episode=episode,
-                        iteration=iteration,
-                        state=sim.get_state(),
-                        action=event.episode_step.action,
-                        sim_speed_delay=delay,
-                    )
             elif event.type == "EpisodeFinish":
                 print("Episode Finishing...")
                 iteration = 0
@@ -438,12 +297,6 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Bonsai and Simulator Integration...")
-    parser.add_argument(
-        "--log-iterations",
-        action="store_true",
-        default=False,
-        help="Log iterations during training",
-    )
     parser.add_argument(
         "--config-setup",
         action="store_true",
@@ -511,7 +364,6 @@ if __name__ == "__main__":
 
     main(
         config_setup=args.config_setup,
-        log_iterations=args.log_iterations,
         sim_speed=args.sim_speed,
         sim_speed_variance=args.sim_speed_variance,
         env_file=args.env_file,
