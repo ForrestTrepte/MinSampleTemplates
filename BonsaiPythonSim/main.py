@@ -29,28 +29,13 @@ default_config = {}
 class TemplateSimulatorSession:
     def __init__(self, env_name: str = "BonsaiPythonSim"):
         self.simulator = cartpole.CartPole()
-        self.count_view = False
         self.env_name = env_name
 
     def get_state(self) -> Dict[str, float]:
-        """Extract current states from the simulator
-
-        Returns
-        -------
-        Dict[str, float]
-            Returns float of current values from the simulator
-        """
         state = self.simulator.state.copy()
         return state
 
     def halted(self) -> bool:
-        """Halt current episode. Note, this should only return True if the simulator has reached an unexpected state.
-
-        Returns
-        -------
-        bool
-            Whether to terminate current episode
-        """
         return False
 
     def episode_start(self, config: Dict = None) -> None:
@@ -61,78 +46,13 @@ class TemplateSimulatorSession:
         self.simulator.step(action)
 
 
-def env_setup(env_file: str = ".env"):
-    """Helper function to setup connection with Project Bonsai
-
-    Returns
-    -------
-    Tuple
-        workspace, and access_key
-    """
-
-    load_dotenv(dotenv_path=env_file, verbose=True, override=True)
-    workspace = os.getenv("SIM_WORKSPACE")
-    access_key = os.getenv("SIM_ACCESS_KEY")
-
-    env_file_exists = os.path.exists(env_file)
-    if not env_file_exists:
-        open(env_file, "a").close()
-
-    if not all([env_file_exists, workspace]):
-        workspace = input("Please enter your workspace id: ")
-        set_key(env_file, "SIM_WORKSPACE", workspace)
-    if not all([env_file_exists, access_key]):
-        access_key = input("Please enter your access key: ")
-        set_key(env_file, "SIM_ACCESS_KEY", access_key)
-
-    load_dotenv(dotenv_path=env_file, verbose=True, override=True)
-    workspace = os.getenv("SIM_WORKSPACE")
-    access_key = os.getenv("SIM_ACCESS_KEY")
-
+def env_setup():
     return workspace, access_key
 
 
-def main(
-    config_setup: bool = False,
-    sim_speed: int = 0,
-    sim_speed_variance: int = 0,
-    env_file: Union[str, bool] = ".env",
-    workspace: str = None,
-    accesskey: str = None,
-):
-    # check if workspace or access-key passed in CLI
-    use_cli_args = all([workspace, accesskey])
-
-    # use dotenv file if provided
-    use_dotenv = env_file or config_setup
-
-    # check for accesskey and workspace id in system variables
-    # Three scenarios
-    # 1. workspace and accesskey provided by CLI args
-    # 2. dotenv provided
-    # 3. system variables
-    # do 1 if provided, use 2 if provided; ow use 3; if no sys vars or dotenv, fail
-
-    if use_cli_args:
-        # BonsaiClientConfig will retrieve as environment variables
-        os.environ["SIM_WORKSPACE"] = workspace
-        os.environ["SIM_ACCESS_KEY"] = accesskey
-    elif use_dotenv:
-        if not env_file:
-            env_file = ".env"
-        print(
-            f"No system variables for workspace-id or access-key found, checking in env-file at {env_file}"
-        )
-        workspace, accesskey = env_setup(env_file)
-        load_dotenv(env_file, verbose=True, override=True)
-    else:
-        try:
-            workspace = os.environ["SIM_WORKSPACE"]
-            accesskey = os.environ["SIM_ACCESS_KEY"]
-        except:
-            raise IndexError(
-                f"Workspace or access key not set or found. Use --config-setup for help setting up."
-            )
+def main():
+    workspace = os.getenv("SIM_WORKSPACE")
+    accesskey = os.getenv("SIM_ACCESS_KEY")
 
     # Grab standardized way to interact with sim API
     sim = TemplateSimulatorSession()
@@ -156,9 +76,6 @@ def main(
     def CreateSession(
         registration_info: SimulatorInterface, config_client: BonsaiClientConfig
     ):
-        """Creates a new Simulator Session and returns new session, sequenceId
-        """
-
         try:
             print(
                 "config: {}, {}".format(config_client.server, config_client.workspace)
@@ -238,28 +155,6 @@ def main(
             elif event.type == "EpisodeStep":
                 iteration += 1
                 delay = 0.0
-                if sim_speed > 0:
-                    if (
-                        sim_speed_variance > 0
-                    ):  # stochastic delay, truncated normal distribution
-                        mu = sim_speed
-                        sigma = sim_speed_variance
-                        lower = np.max(
-                            [0, sim_speed - 3 * sim_speed_variance]
-                        )  # truncating at min +/- 3*variance
-                        upper = sim_speed + 3 * sim_speed_variance
-                        delay = truncnorm.rvs(
-                            (lower - mu) / sigma,
-                            (upper - mu) / sigma,
-                            loc=mu,
-                            scale=sigma,
-                        )
-                        print("stochastic sim delay: {}s".format(delay))
-                        time.sleep(delay)
-                    else:  # fixed delay
-                        delay = sim_speed
-                        print("sim delay: {}s".format(delay))
-                        time.sleep(delay)
                 sim.episode_step(event.episode_step.action)
             elif event.type == "EpisodeFinish":
                 print("Episode Finishing...")
@@ -293,80 +188,4 @@ def main(
 
 
 if __name__ == "__main__":
-
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Bonsai and Simulator Integration...")
-    parser.add_argument(
-        "--config-setup",
-        action="store_true",
-        default=False,
-        help="Use a local environment file to setup access keys and workspace ids",
-    )
-    parser.add_argument(
-        "--env-file",
-        type=str,
-        metavar="ENVIRONMENT FILE",
-        help="path to your environment file",
-        default=None,
-    )
-    parser.add_argument(
-        "--workspace",
-        type=str,
-        metavar="WORKSPACE ID",
-        help="your workspace id",
-        default=None,
-    )
-    parser.add_argument(
-        "--accesskey",
-        type=str,
-        metavar="Your Bonsai workspace access-key",
-        help="your bonsai workspace access key",
-        default=None,
-    )
-
-    group = parser.add_mutually_exclusive_group()
-
-    group.add_argument(
-        "--test-exported",
-        type=int,
-        const=5000,  # if arg is passed with no PORT, use this
-        nargs="?",
-        metavar="PORT",
-        help="Run simulator with an exported brain running on localhost:PORT (default 5000)",
-    )
-
-    parser.add_argument(
-        "--iteration-limit",
-        type=int,
-        metavar="EPISODE_ITERATIONS",
-        help="Episode iteration limit when running local test.",
-        default=200,
-    )
-
-    parser.add_argument(
-        "--sim-speed",
-        type=int,
-        metavar="SIM_SPEED",
-        help="additional emulated sim speed wait in seconds, default: adds 0s",
-        default=0,
-    )
-
-    parser.add_argument(
-        "--sim-speed-variance",
-        type=int,
-        metavar="SIM_SPEED_VARIANCE",
-        help="emulates stochastic sim speed, adds uniform variance to --sim-speed",
-        default=0,
-    )
-
-    args = parser.parse_args()
-
-    main(
-        config_setup=args.config_setup,
-        sim_speed=args.sim_speed,
-        sim_speed_variance=args.sim_speed_variance,
-        env_file=args.env_file,
-        workspace=args.workspace,
-        accesskey=args.accesskey,
-    )
+    main()
