@@ -63,9 +63,7 @@ def main():
 
     try:
         while True:
-            sim_state = SimulatorState(
-                sequence_id=sequence_id, state=simulator.state.copy(), halted=simulator.halted,
-            )
+            sim_state = SimulatorState(sequence_id=sequence_id, state=simulator.state.copy(), halted=simulator.halted)
             try:
                 event = client.session.advance(
                     workspace_name=config_client.workspace,
@@ -73,15 +71,9 @@ def main():
                     body=sim_state,
                 )
                 sequence_id = event.sequence_id
-                print(
-                    "[{}] Last Event: {}".format(time.strftime("%H:%M:%S"), event.type)
-                )
+                print("[{}] Last Event: {}".format(time.strftime("%H:%M:%S"), event.type))
             except HttpResponseError as ex:
-                print(
-                    "HttpResponseError in Advance: StatusCode: {}, Error: {}, Exception: {}".format(
-                        ex.status_code, ex.error.message, ex
-                    )
-                )
+                print("HttpResponseError in Advance: StatusCode: {}, Error: {}, Exception: {}".format(ex.status_code, ex.error.message, ex))
                 # This can happen in network connectivity issue, though SDK has retry logic, but even after that request may fail,
                 # if your network has some issue, or sim session at platform is going away..
                 # So let's re-register sim-session and get a new session and continue iterating. :-)
