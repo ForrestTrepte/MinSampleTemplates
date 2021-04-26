@@ -1,4 +1,4 @@
-class CartPole:
+class Sim:
     def __init__(self):
         self.reset({ 'config_val': 0})
 

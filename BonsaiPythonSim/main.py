@@ -21,7 +21,7 @@ from microsoft_bonsai_api.simulator.generated.models import (
 from azure.core.exceptions import HttpResponseError
 from functools import partial
 
-from sim import cartpole
+from sim import Sim
 
 default_config = {}
 
@@ -34,7 +34,7 @@ def main():
     workspace = os.getenv("SIM_WORKSPACE")
     accesskey = os.getenv("SIM_ACCESS_KEY")
 
-    simulator = cartpole.CartPole()
+    simulator = Sim()
 
     config_client = BonsaiClientConfig()
     client = BonsaiClient(config_client)
