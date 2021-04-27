@@ -1,5 +1,15 @@
 # Bonsai Python Sim - Min Template
 
+## Set up Python environment
+
+Create a conda environment by:
+
+```bash
+conda create -n minbonsai python=3.7
+conda activate minbonsai
+pip install -r requirements.txt
+```
+
 ## Connecting a local instance of the simulator to a brain
 
 Run the simulator locally by:
