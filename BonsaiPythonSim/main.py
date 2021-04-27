@@ -3,11 +3,7 @@
 import os
 import time
 from microsoft_bonsai_api.simulator.client import BonsaiClient, BonsaiClientConfig
-from microsoft_bonsai_api.simulator.generated.models import (
-    SimulatorInterface,
-    SimulatorState,
-    SimulatorSessionResponse,
-)
+from microsoft_bonsai_api.simulator.generated.models import SimulatorInterface, SimulatorState, SimulatorSessionResponse
 from azure.core.exceptions import HttpResponseError
 from sim import Sim
 
@@ -27,9 +23,9 @@ def main():
         description=None,
     )
 
-    print("config: {}, {}".format(config_client.server, config_client.workspace))
+    print(f"config: {config_client.server}, {config_client.workspace}")
     registered_session: SimulatorSessionResponse = client.session.create(workspace_name=config_client.workspace, body=registration_info)
-    print("Registered simulator. {}".format(registered_session.session_id))
+    print(f"Registered simulator. {registered_session.session_id}")
 
     sequence_id = 1
 
@@ -42,24 +38,22 @@ def main():
                 body=sim_state,
             )
             sequence_id = event.sequence_id
-            print("[{}] Last Event: {}".format(time.strftime("%H:%M:%S"), event.type))
+            print(f'[{time.strftime("%H:%M:%S")}] Last Event: {event.type}')
 
             if event.type == "Idle":
                 time.sleep(event.idle.callback_time)
             elif event.type == "EpisodeStart":
-                print(event.episode_start.config)
                 simulator.reset(event.episode_start.config)
             elif event.type == "EpisodeStep":
-                delay = 0.0
                 simulator.step(event.episode_step.action)
             elif event.type == "EpisodeFinish":
                 pass
             elif event.type == "Unregister":
-                print("Simulator Session unregistered by platform because '{}'".format(event.unregister.details))
+                print(f"Simulator Session unregistered by platform because '{event.unregister.details}'")
                 return
     except BaseException as err:
         client.session.delete(workspace_name=config_client.workspace, session_id=registered_session.session_id)
-        print("Unregistered simulator because {}: {}".format(type(err).__name__, err))
+        print(f"Unregistered simulator because {type(err).__name__}: {err}")
 
 if __name__ == "__main__":
     main()
