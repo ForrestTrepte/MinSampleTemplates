@@ -1,17 +1,7 @@
 #!/usr/bin/env python3
 
-import datetime
-import json
 import os
-import pathlib
-import random
-import sys
 import time
-import numpy as np
-from typing import Dict, Union
-from scipy.stats import truncnorm
-
-from dotenv import load_dotenv, set_key
 from microsoft_bonsai_api.simulator.client import BonsaiClient, BonsaiClientConfig
 from microsoft_bonsai_api.simulator.generated.models import (
     SimulatorInterface,
@@ -19,16 +9,7 @@ from microsoft_bonsai_api.simulator.generated.models import (
     SimulatorSessionResponse,
 )
 from azure.core.exceptions import HttpResponseError
-from functools import partial
-
 from sim import Sim
-
-default_config = {}
-
-
-def env_setup():
-    return workspace, access_key
-
 
 def main():
     workspace = os.getenv("SIM_WORKSPACE")
