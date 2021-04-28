@@ -43,9 +43,13 @@ def main():
             if event.type == "Idle":
                 time.sleep(event.idle.callback_time)
             elif event.type == "EpisodeStart":
+                print(f"config {event.episode_start.config}")
                 simulator.reset(event.episode_start.config)
+                print(f"state {simulator.state}")
             elif event.type == "EpisodeStep":
+                print(f"action {event.episode_step.action}")
                 simulator.step(event.episode_step.action)
+                print(f"state {simulator.state}")
             elif event.type == "EpisodeFinish":
                 pass
             elif event.type == "Unregister":
