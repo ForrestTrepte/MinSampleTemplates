@@ -15,9 +15,10 @@ class Sim:
         self.total += self.action['action_val']
 
         state = { 'total': self.total}
-        for config_key, config_value in self.config.items():
+        # TODO: Is sorting keys necessary? Why does order matter? Does it fully solve the problem of hash tables that could still reorder properties?
+        for config_key, config_value in sorted(self.config.items()):
             state['state_' + config_key] = config_value
-        for action_key, action_value in self.action.items():
+        for action_key, action_value in sorted(self.action.items()):
             state['state_' + action_key] = action_value
         return state
 
