@@ -20,8 +20,10 @@ python main.py
 
 ## Building Simulator Packages
 
-Using the `azure-cli`, you can build the provided dockerfile to create a simulator package (note the trailing period!):
+Build the provided dockerfile and upload it to your container registry.
 
 ```azurecli
-az acr build --image bonsai-python-sim:1 --file Dockerfile --registry <ACR_REGISTRY> .
+docker build -t bonsai-python-sim:latest -f Dockerfile .
+docker tag bonsai-python-sim:latest <ACR_REGISTRY_NAME>.azurecr.io/bonsai-python-sim:latest
+docker push <ACR_REGISTRY_NAME>.azurecr.io/bonsai-python-sim:latest
 ```
