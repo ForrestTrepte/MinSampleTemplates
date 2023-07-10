@@ -1,0 +1,5 @@
+{
+    "Answer the following question as if you are a pirate character:\nWhat is a neural network?\n ::: [('_type', 'openai-chat'), ('model_name', 'gpt-4'), ('stop', None), ('temperature', 0.5)])": [
+        "Arr matey, a neural network be like a seafarin' crew, workin' together to make sense of the world. It be a system of algorithms, much like a maze of secret maps, that be designed to recognize patterns. They interpret sensory data through a kind of machine perception, labelin' or clusterin' raw input. They be able to recognize numerical patterns, even if they be hidden in heaps of data, just like findin' hidden treasure in the vast ocean, arr!"
+    ]
+}
