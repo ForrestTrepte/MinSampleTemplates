@@ -2,17 +2,20 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 from langchain.cache import InMemoryCache, RETURN_VAL_TYPE
+from langchain.load.dump import dumps
+from langchain.load.load import loads
 from langchain.schema import Generation
 
 class SimpleLlmCache(InMemoryCache):
     """Cache that stores things in memory and persists to a JSON text file."""
 
-    def __init__(self, verbose: bool) -> None:
+    def __init__(self, filename: str = "llm-cache.json", verbose: bool = False) -> None:
         """
         Initialize with empty cache and filename for JSON text file.
         """
         self._cache: Dict[str, List[str]] = {}
-        self._filename = "llm-cache.json"
+        self._trial = 0
+        self._filename = filename
         self.verbose = verbose
         self.cache_hits = 0
         self.cache_misses = 0
@@ -22,6 +25,9 @@ class SimpleLlmCache(InMemoryCache):
                 self._cache = json.load(f)
         except FileNotFoundError:
             pass
+
+    def set_trial(self, trial: int) -> None:
+        self._trial = trial
 
     def _get_key(self, prompt: str, llm_string: str) -> str:
         """
@@ -34,7 +40,7 @@ class SimpleLlmCache(InMemoryCache):
         Returns:
             The string key.
         """
-        return f"{prompt} ::: {llm_string})"
+        return f"trial {self._trial} ::: {prompt} ::: {llm_string})"
     
     def lookup(self, prompt: str, llm_string: str) -> Optional[RETURN_VAL_TYPE]:
         """
@@ -56,7 +62,7 @@ class SimpleLlmCache(InMemoryCache):
             self.cache_misses += 1
             return None
         for generation in value:
-            generations.append(Generation(text=generation))
+            generations.append(loads(generation))
         self.cache_hits += 1
         return generations
 
@@ -72,7 +78,7 @@ class SimpleLlmCache(InMemoryCache):
         key = self._get_key(prompt, llm_string)
         generations = []
         for generation in return_val:
-            generations.append(generation.text)
+            generations.append(dumps(generation))
         self._cache[key] = generations
         if self.verbose:
             print(f'Cache store for key {repr(key)}')
