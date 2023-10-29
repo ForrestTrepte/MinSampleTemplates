@@ -81,9 +81,8 @@ class LlmCacheStatsWrapper:
         total_input_tokens = self.cache_hits.input_tokens + self.cache_misses.input_tokens
         total_output_tokens = self.cache_hits.output_tokens + self.cache_misses.output_tokens
         print(f"LLM Cache: {self.cache_hits.count} hits, {self.cache_misses.count} misses, {self.cache_stores} stores")
-        print(f"           {self.cache_misses.input_tokens} new input tokens, {self.cache_misses.output_tokens} new output tokens")
-        print(f"           {total_input_tokens} total input tokens, {total_output_tokens} total output tokens")
+        print(f"           {self.cache_misses.input_tokens} new input tokens, {self.cache_misses.output_tokens} new output tokens, {total_input_tokens} total input tokens, {total_output_tokens} total output tokens")
         if input_cents_per_1k_tokens > 0 or output_cents_per_1k_tokens > 0:
             new_cost = (input_cents_per_1k_tokens * self.cache_misses.input_tokens + output_cents_per_1k_tokens * self.cache_misses.output_tokens) / 1000.0
             total_cost = (input_cents_per_1k_tokens * total_input_tokens + output_cents_per_1k_tokens * total_output_tokens) / 1000.0
-            print(f"           new API cost: ${new_cost:.2f}, including previous-cached cost: ${total_cost:.2f}")
+            print(f"           new (this run) API cost: ${new_cost:.2f}, total (including previously-cached runs) API cost: ${total_cost:.2f}")
