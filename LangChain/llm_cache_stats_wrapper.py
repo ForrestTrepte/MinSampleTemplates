@@ -77,12 +77,14 @@ class LlmCacheStatsWrapper:
         self.cache_misses = self.Stat()
         self.cache_stores = 0
 
-    def dump_cache_stats(self, input_cents_per_1k_tokens = 0, output_cents_per_1k_tokens = 0):
+    def get_cache_stats_summary(self, input_cents_per_1k_tokens = 0, output_cents_per_1k_tokens = 0):
+        result = ""
         total_input_tokens = self.cache_hits.input_tokens + self.cache_misses.input_tokens
         total_output_tokens = self.cache_hits.output_tokens + self.cache_misses.output_tokens
-        print(f"LLM Cache: {self.cache_hits.count} hits, {self.cache_misses.count} misses, {self.cache_stores} stores")
-        print(f"           {self.cache_misses.input_tokens} new input tokens, {self.cache_misses.output_tokens} new output tokens, {total_input_tokens} total input tokens, {total_output_tokens} total output tokens")
+        result += f"LLM Cache: {self.cache_hits.count} hits, {self.cache_misses.count} misses, {self.cache_stores} stores\n"
+        result += f"           {self.cache_misses.input_tokens} new input tokens, {self.cache_misses.output_tokens} new output tokens, {total_input_tokens} total input tokens, {total_output_tokens} total output tokens\n"
         if input_cents_per_1k_tokens > 0 or output_cents_per_1k_tokens > 0:
             new_cost = (input_cents_per_1k_tokens * self.cache_misses.input_tokens + output_cents_per_1k_tokens * self.cache_misses.output_tokens) / 1000.0
             total_cost = (input_cents_per_1k_tokens * total_input_tokens + output_cents_per_1k_tokens * total_output_tokens) / 1000.0
-            print(f"           new (this run) API cost: ${new_cost:.2f}, total (including previously-cached runs) API cost: ${total_cost:.2f}")
+            result += f"           new (this run) API cost: ${new_cost:.2f}, total (including previously-cached runs) API cost: ${total_cost:.2f}\n"
+        return result
