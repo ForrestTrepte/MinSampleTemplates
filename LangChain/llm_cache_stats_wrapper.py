@@ -29,7 +29,7 @@ class LlmCacheStatsWrapper:
         self.cache_hits = self.Stat()
         self.cache_misses = self.Stat()
         self.cache_stores = 0
-        self.model_name_re = re.compile(r"\('model_name',\s*'(?P<model_name>[^']+)'")
+        self.model_name_re = re.compile(r"'model_name',\s*'(?P<model_name_format_1>[^']+)'|\"model_name\":\s*\"(?P<model_name_format_2>[^\"]+)\"")
         self.encodings = {}
 
     def lookup(self, prompt: str, llm_string: str) -> Optional[RETURN_VAL_TYPE]:
@@ -48,7 +48,7 @@ class LlmCacheStatsWrapper:
         model_name_match = self.model_name_re.search(llm_string)
         if not model_name_match:
             raise ValueError(f"Could not find model_name in llm_string: {llm_string}")
-        model_name = model_name_match.group('model_name')
+        model_name = model_name_match.group('model_name_format_1') or model_name_match.group('model_name_format_2')
         if model_name not in self.encodings:
             self.encodings[model_name] = tiktoken.encoding_for_model(model_name)
         encoding = self.encodings[model_name]
