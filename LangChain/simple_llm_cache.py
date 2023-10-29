@@ -9,17 +9,13 @@ from langchain.schema import Generation
 class SimpleLlmCache(InMemoryCache):
     """Cache that stores things in memory and persists to a JSON text file."""
 
-    def __init__(self, filename: str = "llm-cache.json", verbose: bool = False) -> None:
+    def __init__(self, filename: str = "llm-cache.json") -> None:
         """
         Initialize with empty cache and filename for JSON text file.
         """
         self._cache: Dict[str, List[str]] = {}
         self._trial = 0
         self._filename = filename
-        self.verbose = verbose
-        self.cache_hits = 0
-        self.cache_misses = 0
-        self.cache_stores = 0
         try:
             with open(self._filename, 'r') as f:
                 self._cache = json.load(f)
@@ -27,6 +23,9 @@ class SimpleLlmCache(InMemoryCache):
             pass
 
     def set_trial(self, trial: int) -> None:
+        """Set a trial index. This permits generating new results for the same prompt and llm_string.
+        For example, when testing LLM prompts this can used to generate multiple different responses for the prompt,
+        while still caching the results for each trial."""
         self._trial = trial
 
     def _get_key(self, prompt: str, llm_string: str) -> str:
@@ -56,14 +55,10 @@ class SimpleLlmCache(InMemoryCache):
         key = self._get_key(prompt, llm_string)
         generations = []
         value = self._cache.get(key, None)
-        if self.verbose:
-            print(f'Cache {"hit" if value else "miss"} for key {repr(key)}')
         if not value:
-            self.cache_misses += 1
             return None
         for generation in value:
             generations.append(loads(generation))
-        self.cache_hits += 1
         return generations
 
     def update(self, prompt: str, llm_string: str, return_val: Any) -> None:
@@ -80,9 +75,6 @@ class SimpleLlmCache(InMemoryCache):
         for generation in return_val:
             generations.append(dumps(generation))
         self._cache[key] = generations
-        if self.verbose:
-            print(f'Cache store for key {repr(key)}')
-        self.cache_stores += 1
         with open(self._filename, 'w') as f:
             json.dump(self._cache, f, indent=4)
 
@@ -95,11 +87,3 @@ class SimpleLlmCache(InMemoryCache):
             os.remove(self._filename)
         except FileNotFoundError:
             pass
-
-    def clear_cache_stats(self):
-        self.cache_hits = 0
-        self.cache_misses = 0
-        self.cache_stores = 0
-
-    def dump_cache_stats(self):
-        print(f"LLM Cache: {self.cache_hits} hits, {self.cache_misses} misses, {self.cache_stores} stores")
