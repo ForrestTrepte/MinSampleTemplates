@@ -12,7 +12,7 @@ class LlmCacheStatsWrapper:
             self.input_tokens = 0
             self.output_tokens = 0
         
-        def add_lookup(self, input_tokens, output_tokens):
+        def add_tokens(self, input_tokens, output_tokens):
             self.count += 1
             self.input_tokens += input_tokens
             self.output_tokens += output_tokens
@@ -44,20 +44,8 @@ class LlmCacheStatsWrapper:
             The value in the cache, or None if not found.
         """
         result = self.inner_cache.lookup(prompt, llm_string)
-
-        model_name_match = self.model_name_re.search(llm_string)
-        if not model_name_match:
-            raise ValueError(f"Could not find model_name in llm_string: {llm_string}")
-        model_name = model_name_match.group('model_name_format_1') or model_name_match.group('model_name_format_2')
-        if model_name not in self.encodings:
-            self.encodings[model_name] = tiktoken.encoding_for_model(model_name)
-        encoding = self.encodings[model_name]
-
-        input_tokens = len(encoding.encode(prompt))
-        output_tokens = 0
-        for generation in result:
-            output_tokens += len(encoding.encode(generation.text))
-        (self.cache_hits if result else self.cache_misses).add_lookup(input_tokens, output_tokens)
+        if result:
+            self.add_tokens(True, prompt, llm_string, result)
         return result
 
     def update(self, prompt: str, llm_string: str, return_val: Any) -> None:
@@ -70,7 +58,23 @@ class LlmCacheStatsWrapper:
             return_val: The value to store in the cache.
         """
         self.inner_cache.update(prompt, llm_string, return_val)
+        self.add_tokens(False, prompt, llm_string, return_val)
         self.cache_stores += 1
+
+    def add_tokens(self, is_hit, prompt, llm_string, result):
+        model_name_match = self.model_name_re.search(llm_string)
+        if not model_name_match:
+            raise ValueError(f"Could not find model_name in llm_string: {llm_string}")
+        model_name = model_name_match.group('model_name_format_1') or model_name_match.group('model_name_format_2')
+        if model_name not in self.encodings:
+            self.encodings[model_name] = tiktoken.encoding_for_model(model_name)
+        encoding = self.encodings[model_name]
+
+        input_tokens = len(encoding.encode(prompt))
+        output_tokens = 0
+        for generation in result:
+            output_tokens += len(encoding.encode(generation.text))
+            (self.cache_hits if is_hit else self.cache_misses).add_tokens(input_tokens, output_tokens)
 
     def clear_cache_stats(self):
         self.cache_hits = self.Stat()
