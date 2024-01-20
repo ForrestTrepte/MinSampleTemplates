@@ -1,4 +1,5 @@
 notebook
 langchain
+langchain_openai
 openai
 tiktoken
