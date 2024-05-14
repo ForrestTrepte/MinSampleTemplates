@@ -6,7 +6,7 @@ if "OPENAI_API_KEY_PERSONAL" in os.environ:
     print("Using key from OPENAI_API_KEY_PERSONAL environment variable")
     os.environ["OPENAI_API_KEY"] = os.environ["OPENAI_API_KEY_PERSONAL"]
 
-llm = ChatOpenAI(temperature=0.0, model_name="gpt-4")
+llm = ChatOpenAI(temperature=0.0, model_name="gpt-4o")
 result = llm.invoke(
     "What would be a good company name for a company that makes colorful socks?"
 )
