@@ -114,15 +114,15 @@ class LlmCacheStatsWrapper:
             result += f"           Can't estimate cost: {e}\n"
         return result
 
-    # from https://openai.com/pricing as of 11/7/23
-    # (input cost, output cost) in USD per 1000 tokens
+    # from https://openai.com/pricing as of 5/14/24
+    # (input cost, output cost) in USD per million tokens
     _token_cost_by_model = {
-        "gpt-4-1106-preview": (0.01, 0.03),
-        "gpt-4": (0.03, 0.06),
-        "gpt-4-32k": (0.06, 0.12),
-        "gpt-3.5-turbo": (0.0030, 0.0060),
-        "gpt-3.5-turbo-1106": (0.0010, 0.0020),
-        "gpt-3.5-turbo-instruct": (0.0015, 0.0020),
+        "gpt-4o": (5.0, 15.0),
+        "gpt-4-1106-preview": (10.0, 30.0),
+        "gpt-4": (30.00, 60.00),
+        "gpt-4-32k": (60.00, 120.00),
+        "gpt-3.5-turbo": (0.50, 1.50),
+        "gpt-3.5-turbo-instruct": (1.50, 2.00),
     }
 
     @classmethod
@@ -131,8 +131,9 @@ class LlmCacheStatsWrapper:
             raise ValueError(f"Unknown model name: {model_name}")
 
         token_cost = cls._token_cost_by_model[model_name]
+        one_million = 1_000_000.0
         cost = (
             cache_misses.input_tokens * token_cost[0]
             + cache_misses.output_tokens * token_cost[1]
-        ) / 1000.0
+        ) / one_million
         return cost
