@@ -1,5 +1,6 @@
 notebook
 langchain
 langchain_openai
+langchain-anthropic
 openai
 tiktoken

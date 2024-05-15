@@ -1,8 +1,9 @@
-from typing import Any, Dict, List, Optional
-from langchain_core.caches import BaseCache, RETURN_VAL_TYPE
+import json
 from collections import defaultdict
+from typing import Any, Dict, List, Optional
+
 import tiktoken
-import re
+from langchain_core.caches import RETURN_VAL_TYPE, BaseCache
 
 
 class LlmCacheStatsWrapper:
@@ -30,9 +31,6 @@ class LlmCacheStatsWrapper:
         self.inner_cache = inner_cache
         self.cache_hits_by_model_name = defaultdict(self.Stat)
         self.cache_misses_by_model_name = defaultdict(self.Stat)
-        self.model_name_re = re.compile(
-            r"'model_name',\s*'(?P<model_name_format_1>[^']+)'|\"model_name\":\s*\"(?P<model_name_format_2>[^\"]+)\""
-        )
         self.encodings = {}
 
     def lookup(self, prompt: str, llm_string: str) -> Optional[RETURN_VAL_TYPE]:
@@ -64,26 +62,54 @@ class LlmCacheStatsWrapper:
         self.add_tokens(False, prompt, llm_string, return_val)
 
     def add_tokens(self, is_hit, prompt, llm_string, result):
-        model_name_match = self.model_name_re.search(llm_string)
-        if not model_name_match:
-            raise ValueError(f"Could not find model_name in llm_string: {llm_string}")
-        model_name = model_name_match.group(
-            "model_name_format_1"
-        ) or model_name_match.group("model_name_format_2")
-        if model_name not in self.encodings:
-            self.encodings[model_name] = tiktoken.encoding_for_model(model_name)
-        encoding = self.encodings[model_name]
+        model_name = self.get_model_name_from_llm_string(llm_string)
 
-        input_tokens = len(encoding.encode(prompt))
+        input_tokens = self.count_tokens(model_name, prompt)
         output_tokens = 0
         for generation in result:
-            output_tokens += len(encoding.encode(generation.text))
+            generation_tokens = self.count_tokens(model_name, generation.text)
+            output_tokens += generation_tokens
 
         (
             self.cache_hits_by_model_name[model_name]
             if is_hit
             else self.cache_misses_by_model_name[model_name]
         ).add_tokens(input_tokens, output_tokens)
+
+    def count_tokens(self, model_name, text):
+        if model_name.startswith("gpt-"):
+            return self.count_tokens_gpt(model_name, text)
+        elif model_name.startswith("claude-"):
+            # Anothropic doesn't seem to provide a tokenizer. As a hack approximation, we'll use the gpt tokenizer to count tokens.
+            return self.count_tokens_gpt("gpt-4", text)
+        else:
+            raise ValueError(f"Unknown model name: {model_name}")
+
+    def count_tokens_gpt(self, model_name, text):
+        if model_name not in self.encodings:
+            self.encodings[model_name] = tiktoken.encoding_for_model(model_name)
+        encoding = self.encodings[model_name]
+        tokens = len(encoding.encode(text))
+        return tokens
+
+    def get_model_name_from_llm_string(self, llm_string):
+        try:
+            json_end_index = llm_string.rfind("}") + 1
+            llm_json_string = llm_string[:json_end_index]
+            llm_json = json.loads(llm_json_string)
+            kwargs = llm_json["kwargs"]
+            model_name = kwargs.get("model_name", None)
+            if model_name:
+                return model_name
+            model_name = kwargs.get("model", None)
+            if model_name:
+                return model_name
+            raise ValueError("No model name found in kwargs")
+        except Exception as e:
+            raise ValueError(f"Could not find model name in llm_string: {llm_string}")
+        model_name = model_name_match.group(
+            "model_name_format_1"
+        ) or model_name_match.group("model_name_format_2")
 
     def clear_cache_stats(self):
         self.cache_hits_by_model_name = defaultdict(self.Stat)
@@ -123,6 +149,7 @@ class LlmCacheStatsWrapper:
         "gpt-4-32k": (60.00, 120.00),
         "gpt-3.5-turbo": (0.50, 1.50),
         "gpt-3.5-turbo-instruct": (1.50, 2.00),
+        "claude-3-haiku-20240307": (0.25, 1.25),
     }
 
     @classmethod
