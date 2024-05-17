@@ -2,5 +2,6 @@ notebook
 langchain
 langchain_openai
 langchain-anthropic
+langchain-google-vertexai
 openai
 tiktoken

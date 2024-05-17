@@ -1,9 +1,12 @@
+import ast
 import json
 from collections import defaultdict
+from enum import Enum, auto
 from typing import Any, Dict, List, Optional
 
 import tiktoken
 from langchain_core.caches import RETURN_VAL_TYPE, BaseCache
+from vertexai.generative_models import GenerativeModel
 
 
 class LlmCacheStatsWrapper:
@@ -12,13 +15,20 @@ class LlmCacheStatsWrapper:
     class Stat:
         def __init__(self):
             self.count = 0
-            self.input_tokens = 0
-            self.output_tokens = 0
+            self.input_units = 0
+            self.output_units = 0
+            self.billing_units = set()
 
-        def add_tokens(self, input_tokens, output_tokens):
+        def add(self, input_units, output_units):
             self.count += 1
-            self.input_tokens += input_tokens
-            self.output_tokens += output_tokens
+            self.input_units += input_units[0]
+            self.billing_units.add(input_units[1])
+            self.output_units += output_units[0]
+            self.billing_units.add(output_units[1])
+
+    class BillingUnit(Enum):
+        TOKENS = auto()
+        CHARACTERS = auto()
 
     def __init__(self, inner_cache: BaseCache) -> None:
         """
@@ -32,6 +42,7 @@ class LlmCacheStatsWrapper:
         self.cache_hits_by_model_name = defaultdict(self.Stat)
         self.cache_misses_by_model_name = defaultdict(self.Stat)
         self.encodings = {}
+        self.generative_models = {}
 
     def lookup(self, prompt: str, llm_string: str) -> Optional[RETURN_VAL_TYPE]:
         """
@@ -64,24 +75,27 @@ class LlmCacheStatsWrapper:
     def add_tokens(self, is_hit, prompt, llm_string, result):
         model_name = self.get_model_name_from_llm_string(llm_string)
 
-        input_tokens = self.count_tokens(model_name, prompt)
-        output_tokens = 0
+        input_units = self.count_units(model_name, prompt)
+        output_units = (0, None)
         for generation in result:
-            generation_tokens = self.count_tokens(model_name, generation.text)
-            output_tokens += generation_tokens
+            generation_units = self.count_units(model_name, generation.text)
+            assert output_units[1] is None or output_units[1] == generation_units[1]
+            output_units = (output_units[0] + generation_units[0], generation_units[1])
 
         (
             self.cache_hits_by_model_name[model_name]
             if is_hit
             else self.cache_misses_by_model_name[model_name]
-        ).add_tokens(input_tokens, output_tokens)
+        ).add(input_units, output_units)
 
-    def count_tokens(self, model_name, text):
+    def count_units(self, model_name, text):
         if model_name.startswith("gpt-"):
             return self.count_tokens_gpt(model_name, text)
         elif model_name.startswith("claude-"):
             # Anothropic doesn't seem to provide a tokenizer. As a hack approximation, we'll use the gpt tokenizer to count tokens.
             return self.count_tokens_gpt("gpt-4", text)
+        elif model_name.startswith("gemini-"):
+            return self.count_characters_gemini(model_name, text)
         else:
             raise ValueError(f"Unknown model name: {model_name}")
 
@@ -90,20 +104,40 @@ class LlmCacheStatsWrapper:
             self.encodings[model_name] = tiktoken.encoding_for_model(model_name)
         encoding = self.encodings[model_name]
         tokens = len(encoding.encode(text))
-        return tokens
+        return tokens, self.BillingUnit.TOKENS
+
+    def count_characters_gemini(self, model_name, text):
+        if model_name not in self.encodings:
+            self.generative_models[model_name] = GenerativeModel(model_name=model_name)
+        generative_model = self.generative_models[model_name]
+        tokens = generative_model.count_tokens(model_name)
+        return tokens.total_billable_characters, self.BillingUnit.CHARACTERS
 
     def get_model_name_from_llm_string(self, llm_string):
         try:
             json_end_index = llm_string.rfind("}") + 1
-            llm_json_string = llm_string[:json_end_index]
-            llm_json = json.loads(llm_json_string)
-            kwargs = llm_json["kwargs"]
-            model_name = kwargs.get("model_name", None)
-            if model_name:
-                return model_name
-            model_name = kwargs.get("model", None)
-            if model_name:
-                return model_name
+            if json_end_index > 0:
+                # OpenAI and Anthropic APIs return JSON string at the beginning of the llm_string
+                llm_json_string = llm_string[:json_end_index]
+                llm_json = json.loads(llm_json_string)
+                kwargs = llm_json["kwargs"]
+                model_name = kwargs.get("model_name", None)
+                if model_name:
+                    return model_name
+                model_name = kwargs.get("model", None)
+                if model_name:
+                    return model_name
+            else:
+                # Google Vertex AI returns a list of tuples that can be converted to a Python dict
+                llm_ast = ast.literal_eval(llm_string)
+                if isinstance(llm_ast, list) and all(
+                    isinstance(item, tuple) and len(item) == 2 for item in llm_ast
+                ):
+                    llm_dict = dict(llm_ast)
+                    model_name = llm_dict.get("model_name", None)
+                    if model_name:
+                        return model_name
+
             raise ValueError("No model name found in kwargs")
         except Exception as e:
             raise ValueError(f"Could not find model name in llm_string: {llm_string}")
@@ -123,7 +157,9 @@ class LlmCacheStatsWrapper:
         result += f"LLM Cache: {sum([x.count for x in all_cache_hits])} hits, {sum([x.count for x in all_cache_misses])} misses\n"
 
         all_stats = list(all_cache_hits) + list(all_cache_misses)
-        result += f"           {sum([x.input_tokens for x in all_cache_misses])} new input tokens, {sum([x.output_tokens for x in all_cache_misses])} new output tokens, {sum([x.input_tokens for x in all_stats])} total input tokens, {sum([x.output_tokens for x in all_stats])} total output tokens\n"
+        all_units = set.union(*[s.billing_units for s in all_stats])
+        unit_name = all_units.pop().name.lower() if len(all_units) == 1 else "units"
+        result += f"           {sum([x.input_units for x in all_cache_misses])} new input {unit_name}, {sum([x.output_units for x in all_cache_misses])} new output {unit_name}, {sum([x.input_units for x in all_stats])} total input {unit_name}, {sum([x.output_units for x in all_stats])} total output {unit_name}\n"
 
         try:
             miss_cost = 0.0
@@ -141,26 +177,27 @@ class LlmCacheStatsWrapper:
         return result
 
     # from https://openai.com/pricing as of 5/14/24
-    # (input cost, output cost) in USD per million tokens
-    _token_cost_by_model = {
-        "gpt-4o": (5.0, 15.0),
-        "gpt-4-1106-preview": (10.0, 30.0),
-        "gpt-4": (30.00, 60.00),
-        "gpt-4-32k": (60.00, 120.00),
-        "gpt-3.5-turbo": (0.50, 1.50),
-        "gpt-3.5-turbo-instruct": (1.50, 2.00),
-        "claude-3-haiku-20240307": (0.25, 1.25),
+    # (input cost, output cost, billing unit) in USD per million billing units
+    _unit_cost_by_model = {
+        "gpt-4o": (5.0, 15.0, BillingUnit.TOKENS),
+        "gpt-4-1106-preview": (10.0, 30.0, BillingUnit.TOKENS),
+        "gpt-4": (30.00, 60.00, BillingUnit.TOKENS),
+        "gpt-4-32k": (60.00, 120.00, BillingUnit.TOKENS),
+        "gpt-3.5-turbo": (0.50, 1.50, BillingUnit.TOKENS),
+        "gpt-3.5-turbo-instruct": (1.50, 2.00, BillingUnit.TOKENS),
+        "claude-3-haiku-20240307": (0.25, 1.25, BillingUnit.TOKENS),
+        "gemini-1.5-flash-preview-0514": (0.125, 0.125, BillingUnit.CHARACTERS),
     }
 
     @classmethod
-    def _get_model_cost(cls, model_name, cache_misses):
-        if not model_name in cls._token_cost_by_model:
+    def _get_model_cost(cls, model_name, cache_data):
+        if not model_name in cls._unit_cost_by_model:
             raise ValueError(f"Unknown model name: {model_name}")
 
-        token_cost = cls._token_cost_by_model[model_name]
+        unit_cost = cls._unit_cost_by_model[model_name]
         one_million = 1_000_000.0
         cost = (
-            cache_misses.input_tokens * token_cost[0]
-            + cache_misses.output_tokens * token_cost[1]
+            cache_data.input_units * unit_cost[0]
+            + cache_data.output_units * unit_cost[1]
         ) / one_million
         return cost
