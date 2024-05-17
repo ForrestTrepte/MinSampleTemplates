@@ -180,13 +180,22 @@ class LlmCacheStatsWrapper:
     # (input cost, output cost, billing unit) in USD per million billing units
     _unit_cost_by_model = {
         "gpt-4o": (5.0, 15.0, BillingUnit.TOKENS),
+        "gpt-4o-2024-05-13": (5.0, 15.0),
         "gpt-4-1106-preview": (10.0, 30.0, BillingUnit.TOKENS),
+        "gpt-4-turbo-2024-04-09": (10.0, 30.0),
         "gpt-4": (30.00, 60.00, BillingUnit.TOKENS),
-        "gpt-4-32k": (60.00, 120.00, BillingUnit.TOKENS),
+        "gpt-4-0613": (30.00, 60.00),
         "gpt-3.5-turbo": (0.50, 1.50, BillingUnit.TOKENS),
         "gpt-3.5-turbo-instruct": (1.50, 2.00, BillingUnit.TOKENS),
+        "claude-3-opus-20240229": (15.0, 75.0, BillingUnit.TOKENS),
+        "claude-3-sonnet-20240229": (3.0, 15.0, BillingUnit.TOKENS),
         "claude-3-haiku-20240307": (0.25, 1.25, BillingUnit.TOKENS),
         "gemini-1.5-flash-preview-0514": (0.125, 0.125, BillingUnit.CHARACTERS),
+        "gemini-1.5-pro-preview-0514": (1.25, 1.25, BillingUnit.CHARACTERS),
+        "gemini-1.0-pro-002": (0.125, 0.125, BillingUnit.CHARACTERS),
+        "vertex-claude-3-opus@20240229": (15.0, 75.0, BillingUnit.TOKENS),
+        "vertex-claude-3-sonnet@20240229": (3.0, 15.0, BillingUnit.TOKENS),
+        "vertex-claude-3-haiku@20240307": (0.25, 1.25, BillingUnit.TOKENS),
     }
 
     @classmethod
