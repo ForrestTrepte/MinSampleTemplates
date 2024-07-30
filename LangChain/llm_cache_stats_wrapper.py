@@ -2,7 +2,7 @@ import ast
 import json
 from collections import defaultdict
 from enum import Enum, auto
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import tiktoken
 from langchain_core.caches import RETURN_VAL_TYPE, BaseCache
@@ -12,23 +12,27 @@ from vertexai.generative_models import GenerativeModel  # type: ignore
 class LlmCacheStatsWrapper:
     """Wrapper for an LLM cache that tracks the number of cache hits and tokens used."""
 
+    class BillingUnit(Enum):
+        TOKENS = auto()
+        CHARACTERS = auto()
+
     class Stat:
-        def __init__(self):
+        def __init__(self) -> None:
             self.count = 0
             self.input_units = 0
             self.output_units = 0
-            self.billing_units = set()
+            self.billing_units: Set[LlmCacheStatsWrapper.BillingUnit] = set()
 
-        def add(self, input_units, output_units):
+        def add(
+            self,
+            input_units: Tuple[int, "LlmCacheStatsWrapper.BillingUnit"],
+            output_units: Tuple[int, "LlmCacheStatsWrapper.BillingUnit"],
+        ) -> None:
             self.count += 1
             self.input_units += input_units[0]
             self.billing_units.add(input_units[1])
             self.output_units += output_units[0]
             self.billing_units.add(output_units[1])
-
-    class BillingUnit(Enum):
-        TOKENS = auto()
-        CHARACTERS = auto()
 
     def __init__(self, inner_cache: BaseCache) -> None:
         """
@@ -86,14 +90,16 @@ class LlmCacheStatsWrapper:
         await self.inner_cache.aupdate(prompt, llm_string, return_val)
         self.add_tokens(False, prompt, llm_string, return_val)
 
-    def add_tokens(self, is_hit, prompt, llm_string, result):
+    def add_tokens(
+        self, is_hit: bool, prompt: str, llm_string: str, result: RETURN_VAL_TYPE
+    ) -> None:
         model_name = self.get_model_name_from_llm_string(llm_string)
 
         input_units = self.count_units(model_name, prompt)
-        output_units = (0, None)
+        output_units = (0, input_units[1])
         for generation in result:
             generation_units = self.count_units(model_name, generation.text)
-            assert output_units[1] is None or output_units[1] == generation_units[1]
+            assert output_units[1] == generation_units[1]
             output_units = (output_units[0] + generation_units[0], generation_units[1])
 
         (
@@ -102,7 +108,7 @@ class LlmCacheStatsWrapper:
             else self.cache_misses_by_model_name[model_name]
         ).add(input_units, output_units)
 
-    def count_units(self, model_name, text):
+    def count_units(self, model_name: str, text: str) -> Tuple[int, BillingUnit]:
         if model_name.startswith("gpt-"):
             return self.count_tokens_gpt(model_name, text)
         elif model_name.startswith("claude-"):
@@ -113,21 +119,23 @@ class LlmCacheStatsWrapper:
         else:
             raise ValueError(f"Unknown model name: {model_name}")
 
-    def count_tokens_gpt(self, model_name, text):
+    def count_tokens_gpt(self, model_name: str, text: str) -> Tuple[int, BillingUnit]:
         if model_name not in self.encodings:
             self.encodings[model_name] = tiktoken.encoding_for_model(model_name)
         encoding = self.encodings[model_name]
         tokens = len(encoding.encode(text))
         return tokens, self.BillingUnit.TOKENS
 
-    def count_characters_gemini(self, model_name, text):
+    def count_characters_gemini(
+        self, model_name: str, text: str
+    ) -> Tuple[int, BillingUnit]:
         if model_name not in self.encodings:
             self.generative_models[model_name] = GenerativeModel(model_name=model_name)
         generative_model = self.generative_models[model_name]
         tokens = generative_model.count_tokens(model_name)
         return tokens.total_billable_characters, self.BillingUnit.CHARACTERS
 
-    def get_model_name_from_llm_string(self, llm_string):
+    def get_model_name_from_llm_string(self, llm_string: str) -> str:
         try:
             json_end_index = llm_string.rfind("---")
             if json_end_index > 0:
@@ -137,9 +145,11 @@ class LlmCacheStatsWrapper:
                 kwargs = llm_json["kwargs"]
                 model_name = kwargs.get("model_name", None)
                 if model_name:
+                    assert isinstance(model_name, str)
                     return model_name
                 model_name = kwargs.get("model", None)
                 if model_name:
+                    assert isinstance(model_name, str)
                     return model_name
             else:
                 # Google Vertex AI returns a list of tuples that can be converted to a Python dict
@@ -150,20 +160,18 @@ class LlmCacheStatsWrapper:
                     llm_dict = dict(llm_ast)
                     model_name = llm_dict.get("model_name", None)
                     if model_name:
+                        assert isinstance(model_name, str)
                         return model_name
 
             raise ValueError("No model name found in kwargs")
         except Exception as e:
             raise ValueError(f"Could not find model name in llm_string: {llm_string}")
-        model_name = model_name_match.group(
-            "model_name_format_1"
-        ) or model_name_match.group("model_name_format_2")
 
-    def clear_cache_stats(self):
+    def clear_cache_stats(self) -> None:
         self.cache_hits_by_model_name = defaultdict(self.Stat)
         self.cache_misses_by_model_name = defaultdict(self.Stat)
 
-    def get_cache_stats_summary(self):
+    def get_cache_stats_summary(self) -> str:
         result = ""
 
         all_cache_hits = self.cache_hits_by_model_name.values()
@@ -192,15 +200,15 @@ class LlmCacheStatsWrapper:
 
     # from https://openai.com/pricing as of 5/14/24
     # (input cost, output cost, billing unit) in USD per million billing units
-    _unit_cost_by_model = {
+    _unit_cost_by_model: Dict[str, Tuple[float, float, BillingUnit]] = {
         "gpt-4o": (5.0, 15.0, BillingUnit.TOKENS),
-        "gpt-4o-2024-05-13": (5.0, 15.0),
+        "gpt-4o-2024-05-13": (5.0, 15.0, BillingUnit.TOKENS),
         "gpt-4o-mini": (0.15, 0.60, BillingUnit.TOKENS),
         "gpt-4o-mini-2024-07-18": (0.15, 0.60, BillingUnit.TOKENS),
         "gpt-4-1106-preview": (10.0, 30.0, BillingUnit.TOKENS),
-        "gpt-4-turbo-2024-04-09": (10.0, 30.0),
+        "gpt-4-turbo-2024-04-09": (10.0, 30.0, BillingUnit.TOKENS),
         "gpt-4": (30.00, 60.00, BillingUnit.TOKENS),
-        "gpt-4-0613": (30.00, 60.00),
+        "gpt-4-0613": (30.00, 60.00, BillingUnit.TOKENS),
         "gpt-3.5-turbo": (0.50, 1.50, BillingUnit.TOKENS),
         "gpt-3.5-turbo-instruct": (1.50, 2.00, BillingUnit.TOKENS),
         "claude-3-opus-20240229": (15.0, 75.0, BillingUnit.TOKENS),
@@ -215,7 +223,7 @@ class LlmCacheStatsWrapper:
     }
 
     @classmethod
-    def _get_model_cost(cls, model_name, cache_data):
+    def _get_model_cost(cls, model_name: str, cache_data: Stat) -> float:
         if not model_name in cls._unit_cost_by_model:
             raise ValueError(f"Unknown model name: {model_name}")
 
