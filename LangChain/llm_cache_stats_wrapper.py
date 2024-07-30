@@ -60,6 +60,12 @@ class LlmCacheStatsWrapper:
             self.add_tokens(True, prompt, llm_string, result)
         return result
 
+    async def alookup(self, prompt: str, llm_string: str) -> Optional[RETURN_VAL_TYPE]:
+        result = await self.inner_cache.alookup(prompt, llm_string)
+        if result:
+            self.add_tokens(True, prompt, llm_string, result)
+        return result
+
     def update(self, prompt: str, llm_string: str, return_val: Any) -> None:
         """
         Update cache based on prompt and llm_string and persist to JSON text file.
@@ -70,6 +76,10 @@ class LlmCacheStatsWrapper:
             return_val: The value to store in the cache.
         """
         self.inner_cache.update(prompt, llm_string, return_val)
+        self.add_tokens(False, prompt, llm_string, return_val)
+
+    async def aupdate(self, prompt: str, llm_string: str, return_val: Any) -> None:
+        await self.inner_cache.aupdate(prompt, llm_string, return_val)
         self.add_tokens(False, prompt, llm_string, return_val)
 
     def add_tokens(self, is_hit, prompt, llm_string, result):
