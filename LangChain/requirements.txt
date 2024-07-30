@@ -5,3 +5,4 @@ langchain-anthropic
 langchain-google-vertexai
 openai
 tiktoken
+mypy

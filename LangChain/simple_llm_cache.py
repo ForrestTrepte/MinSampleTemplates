@@ -15,12 +15,13 @@ class SimpleLlmCache(InMemoryCache):
         """
         Initialize with empty cache and filename for JSON text file.
         """
-        self._cache: Dict[str, List[str]] = {}
+        # We have changed the name of the base class _cache to _scache to avoid type errors.
+        self._scache: Dict[str, List[str]] = {}
         self._trial = 0
         self._filename = filename
         try:
             with open(self._filename, "r") as f:
-                self._cache = json.load(f)
+                self._scache = json.load(f)
         except FileNotFoundError:
             pass
 
@@ -56,7 +57,7 @@ class SimpleLlmCache(InMemoryCache):
         """
         key = self._get_key(prompt, llm_string)
         generations = []
-        value = self._cache.get(key, None)
+        value = self._scache.get(key, None)
         if not value:
             return None
         for generation in value:
@@ -76,16 +77,16 @@ class SimpleLlmCache(InMemoryCache):
         generations = []
         for generation in return_val:
             generations.append(dumps(generation))
-        self._cache[key] = generations
+        self._scache[key] = generations
         with open(self._filename, "w") as f:
-            json.dump(self._cache, f, indent=4)
+            json.dump(self._scache, f, indent=4)
 
-    def clear(self) -> None:
+    def clear(self, **kwargs: Any) -> None:
         """
         Clear cache and remove JSON text file.
         """
         try:
-            self._cache = {}
+            self._scache = {}
             os.remove(self._filename)
         except FileNotFoundError:
             pass

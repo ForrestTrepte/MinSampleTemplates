@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 import tiktoken
 from langchain_core.caches import RETURN_VAL_TYPE, BaseCache
-from vertexai.generative_models import GenerativeModel
+from vertexai.generative_models import GenerativeModel  # type: ignore
 
 
 class LlmCacheStatsWrapper:
@@ -39,10 +39,14 @@ class LlmCacheStatsWrapper:
             encoding: The encoding used by the model.
         """
         self.inner_cache = inner_cache
-        self.cache_hits_by_model_name = defaultdict(self.Stat)
-        self.cache_misses_by_model_name = defaultdict(self.Stat)
-        self.encodings = {}
-        self.generative_models = {}
+        self.cache_hits_by_model_name: Dict[str, "LlmCacheStatsWrapper.Stat"] = (
+            defaultdict(self.Stat)
+        )
+        self.cache_misses_by_model_name: Dict[str, "LlmCacheStatsWrapper.Stat"] = (
+            defaultdict(self.Stat)
+        )
+        self.encodings: Dict[str, tiktoken.Encoding] = {}
+        self.generative_models: Dict[str, GenerativeModel] = {}
 
     def lookup(self, prompt: str, llm_string: str) -> Optional[RETURN_VAL_TYPE]:
         """
