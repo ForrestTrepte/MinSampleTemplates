@@ -129,7 +129,7 @@ class LlmCacheStatsWrapper:
 
     def get_model_name_from_llm_string(self, llm_string):
         try:
-            json_end_index = llm_string.rfind("}") + 1
+            json_end_index = llm_string.rfind("---")
             if json_end_index > 0:
                 # OpenAI and Anthropic APIs return JSON string at the beginning of the llm_string
                 llm_json_string = llm_string[:json_end_index]
