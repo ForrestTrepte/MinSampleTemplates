@@ -181,6 +181,8 @@ class LlmCacheStatsWrapper:
     _unit_cost_by_model = {
         "gpt-4o": (5.0, 15.0, BillingUnit.TOKENS),
         "gpt-4o-2024-05-13": (5.0, 15.0),
+        "gpt-4o-mini": (0.15, 0.60, BillingUnit.TOKENS),
+        "gpt-4o-mini-2024-07-18": (0.15, 0.60, BillingUnit.TOKENS),
         "gpt-4-1106-preview": (10.0, 30.0, BillingUnit.TOKENS),
         "gpt-4-turbo-2024-04-09": (10.0, 30.0),
         "gpt-4": (30.00, 60.00, BillingUnit.TOKENS),
