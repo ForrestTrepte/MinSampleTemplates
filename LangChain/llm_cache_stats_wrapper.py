@@ -1,5 +1,6 @@
 import ast
 import json
+import logging
 from collections import defaultdict
 from enum import Enum, auto
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -7,6 +8,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import tiktoken
 from langchain_core.caches import RETURN_VAL_TYPE, BaseCache
 from vertexai.generative_models import GenerativeModel  # type: ignore
+
+logger = logging.getLogger(__name__)
 
 
 class LlmCacheStatsWrapper:
@@ -63,15 +66,19 @@ class LlmCacheStatsWrapper:
         Returns:
             The value in the cache, or None if not found.
         """
+        logger.debug(f"> LlmCacheStatsWrapper.lookup")
         result = self.inner_cache.lookup(prompt, llm_string)
         if result:
             self.add_tokens(True, prompt, llm_string, result)
+        logger.debug(f"< LlmCacheStatsWrapper.lookup ({'hit' if result else 'miss'})")
         return result
 
     async def alookup(self, prompt: str, llm_string: str) -> Optional[RETURN_VAL_TYPE]:
+        logger.debug(f"> LlmCacheStatsWrapper.alookup")
         result = await self.inner_cache.alookup(prompt, llm_string)
         if result:
             self.add_tokens(True, prompt, llm_string, result)
+        logger.debug(f"< LlmCacheStatsWrapper.alookup ({'hit' if result else 'miss'})")
         return result
 
     def update(self, prompt: str, llm_string: str, return_val: Any) -> None:
@@ -83,12 +90,16 @@ class LlmCacheStatsWrapper:
             llm_string: The llm_string to use as part of the key.
             return_val: The value to store in the cache.
         """
+        logger.debug(f"> LlmCacheStatsWrapper.update")
         self.inner_cache.update(prompt, llm_string, return_val)
         self.add_tokens(False, prompt, llm_string, return_val)
+        logger.debug(f"< LlmCacheStatsWrapper.update")
 
     async def aupdate(self, prompt: str, llm_string: str, return_val: Any) -> None:
+        logger.debug(f"> LlmCacheStatsWrapper.aupdate")
         await self.inner_cache.aupdate(prompt, llm_string, return_val)
         self.add_tokens(False, prompt, llm_string, return_val)
+        logger.debug(f"< LlmCacheStatsWrapper.aupdate")
 
     def add_tokens(
         self, is_hit: bool, prompt: str, llm_string: str, result: RETURN_VAL_TYPE

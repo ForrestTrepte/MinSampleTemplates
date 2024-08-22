@@ -1,11 +1,16 @@
 import json
+import logging
 import os
 from typing import Any, Dict, List, Optional
-from langchain_core.caches import RETURN_VAL_TYPE
+
 from langchain_community.cache import InMemoryCache
+from langchain_core.caches import RETURN_VAL_TYPE
+
 from langchain.load.dump import dumps
 from langchain.load.load import loads
 from langchain.schema import Generation
+
+logger = logging.getLogger(__name__)
 
 
 class SimpleLlmCache(InMemoryCache):
@@ -55,13 +60,16 @@ class SimpleLlmCache(InMemoryCache):
         Returns:
             The value in the cache, or None if not found.
         """
+        logger.debug(f"> SimpleLlmCache.lookup")
         key = self._get_key(prompt, llm_string)
-        generations = []
         value = self._scache.get(key, None)
         if not value:
+            logger.debug(f"< SimpleLlmCache.lookup (miss)")
             return None
+        generations = []
         for generation in value:
             generations.append(loads(generation))
+        logger.debug(f"< SimpleLlmCache.lookup (hit)")
         return generations
 
     def update(self, prompt: str, llm_string: str, return_val: Any) -> None:
@@ -73,6 +81,7 @@ class SimpleLlmCache(InMemoryCache):
             llm_string: The llm_string to use as part of the key.
             return_val: The value to store in the cache.
         """
+        logger.debug(f"> SimpleLlmCache.update")
         key = self._get_key(prompt, llm_string)
         generations = []
         for generation in return_val:
@@ -80,6 +89,7 @@ class SimpleLlmCache(InMemoryCache):
         self._scache[key] = generations
         with open(self._filename, "w") as f:
             json.dump(self._scache, f, indent=4)
+        logger.debug(f"< SimpleLlmCache.update")
 
     def clear(self, **kwargs: Any) -> None:
         """
