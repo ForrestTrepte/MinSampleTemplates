@@ -1,16 +1,18 @@
 import json
 import logging
 import os
+import shutil
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
-
-from langchain_community.cache import InMemoryCache
-from langchain_core.caches import RETURN_VAL_TYPE
 
 from langchain.load.dump import dumps
 from langchain.load.load import loads
 from langchain.schema import Generation
+from langchain_community.cache import InMemoryCache
+from langchain_core.caches import RETURN_VAL_TYPE
 
 logger = logging.getLogger(__name__)
+time_per_backup = timedelta(minutes=15)
 
 
 class SimpleLlmCache(InMemoryCache):
@@ -24,6 +26,7 @@ class SimpleLlmCache(InMemoryCache):
         self._scache: Dict[str, List[str]] = {}
         self._trial = 0
         self._filename = filename
+        self.last_backup = datetime.min
         try:
             with open(self._filename, "r") as f:
                 self._scache = json.load(f)
@@ -87,8 +90,16 @@ class SimpleLlmCache(InMemoryCache):
         for generation in return_val:
             generations.append(dumps(generation))
         self._scache[key] = generations
-        with open(self._filename, "w") as f:
+        # Write it to a temp file first. In case we are interrupted while writing, we don't want a partially-written file.
+        temp_filename = self._filename + ".tmp"
+        with open(temp_filename, "w") as f:
             json.dump(self._scache, f, indent=4)
+        if os.path.exists(self._filename):
+            if datetime.now() - self.last_backup > time_per_backup:
+                self.last_backup = datetime.now()
+                backup_filename = self._filename + ".bak"
+                shutil.move(self._filename, backup_filename)
+        shutil.move(temp_filename, self._filename)
         logger.debug(f"< SimpleLlmCache.update")
 
     def clear(self, **kwargs: Any) -> None:
