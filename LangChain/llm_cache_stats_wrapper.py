@@ -10,6 +10,7 @@ from langchain_core.caches import RETURN_VAL_TYPE, BaseCache
 from vertexai.generative_models import GenerativeModel  # type: ignore
 
 logger = logging.getLogger(__name__)
+vertex_model_name_prefix = "vertexai-"
 
 
 class LlmCacheStatsWrapper:
@@ -120,10 +121,13 @@ class LlmCacheStatsWrapper:
         ).add(input_units, output_units)
 
     def count_units(self, model_name: str, text: str) -> Tuple[int, BillingUnit]:
+        if model_name.startswith(vertex_model_name_prefix):
+            model_name = model_name[len(vertex_model_name_prefix) :]
+
         if model_name.startswith("gpt-"):
             return self.count_tokens_gpt(model_name, text)
         elif model_name.startswith("claude-"):
-            # Anothropic doesn't seem to provide a tokenizer. As a hack approximation, we'll use the gpt tokenizer to count tokens.
+            # Anthropic doesn't seem to provide a tokenizer. As a hack approximation, we'll use the gpt tokenizer to count tokens.
             return self.count_tokens_gpt("gpt-4", text)
         elif model_name.startswith("gemini-"):
             return self.count_characters_gemini(model_name, text)
@@ -170,6 +174,9 @@ class LlmCacheStatsWrapper:
                 ):
                     llm_dict = dict(llm_ast)
                     model_name = llm_dict.get("model_name", None)
+                    if "vertexai" in llm_dict.get("_type", ""):
+                        # Prepend "vertexai-" to the model name so we can distinguish models such as Claude that can be hosted on Google from other hosting options.
+                        model_name = f"{vertex_model_name_prefix}{model_name}"
                     if model_name:
                         assert isinstance(model_name, str)
                         return model_name
@@ -226,12 +233,16 @@ class LlmCacheStatsWrapper:
         "claude-3-opus-20240229": (15.0, 75.0, BillingUnit.TOKENS),
         "claude-3-sonnet-20240229": (3.0, 15.0, BillingUnit.TOKENS),
         "claude-3-haiku-20240307": (0.25, 1.25, BillingUnit.TOKENS),
-        "gemini-1.5-flash-preview-0514": (0.125, 0.125, BillingUnit.CHARACTERS),
-        "gemini-1.5-pro-preview-0514": (1.25, 1.25, BillingUnit.CHARACTERS),
-        "gemini-1.0-pro-002": (0.125, 0.125, BillingUnit.CHARACTERS),
-        "vertex-claude-3-opus@20240229": (15.0, 75.0, BillingUnit.TOKENS),
-        "vertex-claude-3-sonnet@20240229": (3.0, 15.0, BillingUnit.TOKENS),
-        "vertex-claude-3-haiku@20240307": (0.25, 1.25, BillingUnit.TOKENS),
+        "vertexai-gemini-1.5-flash-preview-0514": (
+            0.125,
+            0.125,
+            BillingUnit.CHARACTERS,
+        ),
+        "vertexai-gemini-1.5-pro-preview-0514": (1.25, 1.25, BillingUnit.CHARACTERS),
+        "vertexai-gemini-1.0-pro-002": (0.125, 0.125, BillingUnit.CHARACTERS),
+        "vertexai-claude-3-opus@20240229": (15.0, 75.0, BillingUnit.TOKENS),
+        "vertexai-claude-3-sonnet@20240229": (3.0, 15.0, BillingUnit.TOKENS),
+        "vertexai-claude-3-haiku@20240307": (0.25, 1.25, BillingUnit.TOKENS),
     }
 
     @classmethod
