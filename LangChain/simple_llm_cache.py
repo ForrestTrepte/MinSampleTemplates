@@ -1,3 +1,4 @@
+import contextvars
 import json
 import logging
 import os
@@ -24,7 +25,12 @@ class SimpleLlmCache(InMemoryCache):
         """
         # We have changed the name of the base class _cache to _scache to avoid type errors.
         self._scache: Dict[str, List[str]] = {}
-        self._trial = 0
+
+        # Trial is saved in a context variable so that it can be set in async methods
+        # with their own context, without interfering with other async methods that are
+        # also using the cache while running concurrently.
+        self._trial_contextvar = contextvars.ContextVar("cache trial", default=0)
+
         self._filename = filename
         self.last_backup = datetime.min
         try:
@@ -37,7 +43,7 @@ class SimpleLlmCache(InMemoryCache):
         """Set a trial index. This permits generating new results for the same prompt and llm_string.
         For example, when testing LLM prompts this can used to generate multiple different responses for the prompt,
         while still caching the results for each trial."""
-        self._trial = trial
+        self._trial_contextvar.set(trial)
 
     def _get_key(self, prompt: str, llm_string: str) -> str:
         """
@@ -50,7 +56,8 @@ class SimpleLlmCache(InMemoryCache):
         Returns:
             The string key.
         """
-        return f"trial {self._trial} ::: {prompt} ::: {llm_string})"
+        result = f"trial {self._trial_contextvar.get()} ::: {prompt} ::: {llm_string})"
+        return result
 
     def lookup(self, prompt: str, llm_string: str) -> Optional[RETURN_VAL_TYPE]:
         """
