@@ -1,4 +1,5 @@
 import contextvars
+import hashlib
 import json
 import logging
 import os
@@ -14,6 +15,9 @@ from langchain_core.caches import RETURN_VAL_TYPE
 
 logger = logging.getLogger(__name__)
 time_per_backup = timedelta(minutes=15)
+
+# Setting that can be used for debugging unexpected cache misses. Prints out the key so it can be compared with keys in the cache file.
+warn_on_cache_misses = False
 
 
 class SimpleLlmCache(InMemoryCache):
@@ -56,7 +60,28 @@ class SimpleLlmCache(InMemoryCache):
         Returns:
             The string key.
         """
-        result = f"trial {self._trial_contextvar.get()} ::: {prompt} ::: {llm_string})"
+        # Sometimes (and sometimes not), with Gemini, the llm string contains async_client information
+        # we need to ignore in order to retrieve cached results. Even if it consistently returned this info,
+        # it contains a repr with a memory address that we'd need to ignore.
+        canonicalized_llm_string = llm_string
+        if '"async_client":' in llm_string:
+            # Parse the non-json text before --- at the end of llm_string.
+            llm_string_dash_split = llm_string.rsplit("---", 1)
+            llm_string_json_text = llm_string_dash_split[0]
+            llm_string_dash_text = (
+                "---" + llm_string_dash_split[1]
+                if len(llm_string_dash_split) > 1
+                else ""
+            )
+            llm_string_json = json.loads(llm_string_json_text)
+            id = llm_string_json.get("id", [])
+            if "ChatVertexAI" in id:
+                kwargs = llm_string_json.get("kwargs", {})
+                if "async_client" in kwargs:
+                    kwargs.pop("async_client")
+                    canonicalized_llm_string = json.dumps(llm_string_json)
+                    canonicalized_llm_string += llm_string_dash_text
+        result = f"trial {self._trial_contextvar.get()} ::: {prompt} ::: {canonicalized_llm_string})"
         return result
 
     def lookup(self, prompt: str, llm_string: str) -> Optional[RETURN_VAL_TYPE]:
@@ -75,12 +100,37 @@ class SimpleLlmCache(InMemoryCache):
         value = self._scache.get(key, None)
         if not value:
             logger.debug(f"< SimpleLlmCache.lookup (miss)")
+            if warn_on_cache_misses:
+                logger.warning(
+                    f"Cache miss {self.get_key_hash(key)} (see debug log file for string literal of key)"
+                )
+                logger.debug(self.get_string_literal(key))
             return None
         generations = []
         for generation in value:
             generations.append(loads(generation))
         logger.debug(f"< SimpleLlmCache.lookup (hit)")
         return generations
+
+    @classmethod
+    def get_key_hash(self, key: str) -> str:
+        trial_split = key.split(":::", 1)
+        trial_part = trial_split[0].strip().replace("trial ", "t")
+        hash_after_trial = hashlib.sha1(trial_split[1].encode("utf-8")).hexdigest()[:8]
+        result = f"{trial_part}:{hash_after_trial}"
+        return result
+
+    @classmethod
+    def get_string_literal(cls, s: str) -> str:
+        # Repr is a string literal surrounded by single quotes.
+        single_quoted = repr(s)
+        assert single_quoted[0] == "'" and single_quoted[-1] == "'"
+        # We need to convert it to double quotes in order to match the string literals in the cache file.
+        double_quoted = single_quoted[1:-1]
+        double_quoted = double_quoted.replace('"', r"\"")
+        double_quoted = double_quoted.replace("\\'", "'")
+        double_quoted = '"' + double_quoted + '"'
+        return double_quoted
 
     def update(self, prompt: str, llm_string: str, return_val: Any) -> None:
         """
@@ -93,6 +143,8 @@ class SimpleLlmCache(InMemoryCache):
         """
         logger.debug(f"> SimpleLlmCache.update")
         key = self._get_key(prompt, llm_string)
+        if warn_on_cache_misses:
+            logger.debug(f"Cache update {self.get_key_hash(key)}")
         generations = []
         for generation in return_val:
             generations.append(dumps(generation))

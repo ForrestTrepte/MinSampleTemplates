@@ -9,6 +9,8 @@ import tiktoken
 from langchain_core.caches import RETURN_VAL_TYPE, BaseCache
 from vertexai.generative_models import GenerativeModel  # type: ignore
 
+from llm_tokenizer import get_fallback_tokenizer_name
+
 logger = logging.getLogger(__name__)
 vertex_model_name_prefix = "vertexai-"
 
@@ -124,7 +126,7 @@ class LlmCacheStatsWrapper:
         if model_name.startswith(vertex_model_name_prefix):
             model_name = model_name[len(vertex_model_name_prefix) :]
 
-        if model_name.startswith("gpt-"):
+        if model_name.startswith("gpt-") or model_name.startswith("o1-"):
             return self.count_tokens_gpt(model_name, text)
         elif model_name.startswith("claude-"):
             # Anthropic doesn't seem to provide a tokenizer. As a hack approximation, we'll use the gpt tokenizer to count tokens.
@@ -136,7 +138,12 @@ class LlmCacheStatsWrapper:
 
     def count_tokens_gpt(self, model_name: str, text: str) -> Tuple[int, BillingUnit]:
         if model_name not in self.encodings:
-            self.encodings[model_name] = tiktoken.encoding_for_model(model_name)
+            try:
+                self.encodings[model_name] = tiktoken.encoding_for_model(model_name)
+            except KeyError as e:
+                self.encodings[model_name] = tiktoken.encoding_for_model(
+                    get_fallback_tokenizer_name(model_name, e)
+                )
         encoding = self.encodings[model_name]
         tokens = len(encoding.encode(text))
         return tokens, self.BillingUnit.TOKENS
@@ -197,7 +204,9 @@ class LlmCacheStatsWrapper:
         result += f"LLM Cache: {sum([x.count for x in all_cache_hits])} hits, {sum([x.count for x in all_cache_misses])} misses\n"
 
         all_stats = list(all_cache_hits) + list(all_cache_misses)
-        all_units = set.union(*[s.billing_units for s in all_stats])
+        all_units = (
+            set.union(*[s.billing_units for s in all_stats]) if all_stats else set()
+        )
         unit_name = all_units.pop().name.lower() if len(all_units) == 1 else "units"
         result += f"           {sum([x.input_units for x in all_cache_misses])} new input {unit_name}, {sum([x.output_units for x in all_cache_misses])} new output {unit_name}, {sum([x.input_units for x in all_stats])} total input {unit_name}, {sum([x.output_units for x in all_stats])} total output {unit_name}\n"
 
@@ -216,9 +225,11 @@ class LlmCacheStatsWrapper:
             result += f"           Can't estimate cost: {e}\n"
         return result
 
-    # from https://openai.com/pricing as of 5/14/24
+    # from https://openai.com/pricing and https://cloud.google.com/vertex-ai/generative-ai/pricing
     # (input cost, output cost, billing unit) in USD per million billing units
     _unit_cost_by_model: Dict[str, Tuple[float, float, BillingUnit]] = {
+        "o1-preview": (15.0, 60.0, BillingUnit.TOKENS),
+        "o1-preview-2024-09-12": (15.0, 60.0, BillingUnit.TOKENS),
         "gpt-4o": (5.0, 15.0, BillingUnit.TOKENS),
         "gpt-4o-2024-05-13": (5.0, 15.0, BillingUnit.TOKENS),
         "gpt-4o-2024-08-06": (2.5, 10.0, BillingUnit.TOKENS),
@@ -233,13 +244,14 @@ class LlmCacheStatsWrapper:
         "claude-3-opus-20240229": (15.0, 75.0, BillingUnit.TOKENS),
         "claude-3-sonnet-20240229": (3.0, 15.0, BillingUnit.TOKENS),
         "claude-3-haiku-20240307": (0.25, 1.25, BillingUnit.TOKENS),
-        "vertexai-gemini-1.5-flash-preview-0514": (
-            0.125,
-            0.125,
-            BillingUnit.CHARACTERS,
-        ),
-        "vertexai-gemini-1.5-pro-preview-0514": (1.25, 1.25, BillingUnit.CHARACTERS),
-        "vertexai-gemini-1.0-pro-002": (0.125, 0.125, BillingUnit.CHARACTERS),
+        # TODO: Higher price for Gemini >128K context window
+        "gemini-1.5-flash-latest": (0.01875, 0.075, BillingUnit.CHARACTERS),
+        "gemini-1.5-flash": (0.01875, 0.075, BillingUnit.CHARACTERS),
+        "gemini-1.5-flash-001": (0.01875, 0.075, BillingUnit.CHARACTERS),
+        "gemini-1.5-pro-latest": (1.25, 3.75, BillingUnit.CHARACTERS),
+        "gemini-1.5-pro": (1.25, 3.75, BillingUnit.CHARACTERS),
+        "gemini-1.5-pro-001": (1.25, 3.75, BillingUnit.CHARACTERS),
+        "gemini-pro-experimental": (1.25, 3.75, BillingUnit.CHARACTERS),
         "vertexai-claude-3-opus@20240229": (15.0, 75.0, BillingUnit.TOKENS),
         "vertexai-claude-3-sonnet@20240229": (3.0, 15.0, BillingUnit.TOKENS),
         "vertexai-claude-3-haiku@20240307": (0.25, 1.25, BillingUnit.TOKENS),
