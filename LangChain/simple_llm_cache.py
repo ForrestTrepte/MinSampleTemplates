@@ -49,6 +49,11 @@ class SimpleLlmCache(InMemoryCache):
         while still caching the results for each trial."""
         self._trial_contextvar.set(trial)
 
+    def get_trial(self) -> int:
+        """Get the current trial index."""
+        result = self._trial_contextvar.get()
+        return result
+
     def _get_key(self, prompt: str, llm_string: str) -> str:
         """
         Convert the tuple key to a string key.
