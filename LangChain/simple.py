@@ -76,9 +76,10 @@ class RecipesPydantic(BaseModel):
 if method == "langchain vertexai":
     llm = ChatVertexAI(
         temperature=0.0,
-        model_name="gemini-1.5-pro-001",
+        model_name="gemini-2.5-flash",
         response_mime_type="application/json",
         response_schema=response_schema,
+        location="global",
     )  # type: ignore
     result = llm.invoke("List a few popular cookie recipes")
     print(result.content)
@@ -86,30 +87,26 @@ elif method == "langchain structured vertexai":
     # NOTE: Internally, this uses a tool instead of a JSON schema for output.
     llm = ChatVertexAI(
         temperature=0.0,
-        model_name="gemini-1.5-pro-001",
+        model_name="gemini-2.5-flash",
+        location="global",
     )  # type: ignore
 
-    # structured_llm = llm.with_structured_output(response_schema_object)
-    structured_llm = llm.with_structured_output(RecipesPydantic)
+    structured_llm = llm.with_structured_output(response_schema_object)
+    # structured_llm = llm.with_structured_output(RecipesPydantic)
 
     result = structured_llm.invoke("List a few popular cookie recipes")
     print(result)
 elif method == "langchain genai":
-    # os.environ["GOOGLE_API_KEY"] = "XXX"
     llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-pro-001",
+        model="gemini-2.5-flash",
         response_mime_type="application/json",
         response_schema=response_schema,
     )
-    result = llm.invoke(
-        "List a few popular cookie recipes",
-        response_mime_type="application/json",
-        response_schema=response_schema,
-    )
+    result = llm.invoke("List a few popular cookie recipes")
     print(result.content)
 elif method == "google vertexai":
-    vertexai.init(project="forrest-ai-sandbox", location="us-central1")
-    llm = GenerativeModel("gemini-1.5-pro-001")
+    vertexai.init(project="forrest-ai-sandbox", location="global")
+    llm = GenerativeModel("gemini-2.5-flash")
     response = llm.generate_content(
         "List a few popular cookie recipes",
         generation_config=GenerationConfig(
@@ -118,4 +115,5 @@ elif method == "google vertexai":
     )
     print(response.text)
 elif method == "google genai":
+    print("google genai method not implemented")
     pass
