@@ -24,4 +24,3 @@ What the files are doing:
 * pyproject.toml: Python packages to install (via uv, invoked in the Dockerfile)
 * devcontainer.json: How vscode Dev Containers will use the container
 * launch.json: How to run the debugger
-* pyproject.toml: Python dependencies, managed by uv
