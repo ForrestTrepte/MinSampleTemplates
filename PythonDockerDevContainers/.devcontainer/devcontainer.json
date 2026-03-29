@@ -1,0 +1,14 @@
+{
+    "name": "Python Hello World",
+    "build": {
+        "dockerfile": "../Dockerfile"
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python"
+            ]
+        }
+    },
+    "workspaceFolder": "/workspaces/MinSampleTemplates/PythonDockerDevContainers"
+}
