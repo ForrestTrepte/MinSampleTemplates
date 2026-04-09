@@ -1,5 +1,5 @@
 {
-    "name": "Python Hello World",
+    "name": "Anthropic MinSampleTemplate",
     "build": {
         "dockerfile": "../Dockerfile"
     },
