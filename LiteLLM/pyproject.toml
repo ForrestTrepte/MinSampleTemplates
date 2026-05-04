@@ -1,0 +1,8 @@
+[project]
+name = "MinSampleTemplate-LiteLLM"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "litellm>=1.83.12",
+    "pip-audit",
+]
