@@ -1,0 +1,18 @@
+{
+    "name": "OpenAI Responses MinSampleTemplate",
+    "build": {
+        "dockerfile": "../Dockerfile",
+        "context": ".."
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python"
+            ],
+            "settings": {
+                "python.defaultInterpreterPath": "/opt/venvs/openai-reponses/bin/python"
+            }
+        }
+    },
+    "workspaceFolder": "/workspaces/MinSampleTemplates/openai_reponses"
+}
