@@ -1,0 +1,19 @@
+{
+    "name": "Webpack HTML with JavaScript MinSampleTemplate",
+    "build": {
+        "dockerfile": "../Dockerfile"
+    },
+    "mounts": [
+        // Keep the container's Linux node_modules in a volume, separate from any on the host
+        "source=webpackhtmlwithjavascript-node_modules,target=${containerWorkspaceFolder}/node_modules,type=volume"
+    ],
+    "postCreateCommand": "npm ci",
+    "forwardPorts": [8080],
+    "portsAttributes": {
+        "8080": {
+            "label": "webpack dev server",
+            "onAutoForward": "openBrowser"
+        }
+    },
+    "workspaceFolder": "/workspaces/MinSampleTemplates/WebpackHtmlWithJavaScript"
+}

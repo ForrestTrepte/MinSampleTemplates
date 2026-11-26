@@ -2,15 +2,13 @@
 
 Starter project pure HTML + JavaScript development.
 
+## Setup
+
+Run from vscode using `Dev Containers: Reopen in Container`. Dependencies are installed with `npm ci` when the container is created.
+
 ## Development
 
-[Install npm](https://nodejs.org/en/download/)
-
-Install dependencies:
-
-`npm install`
-
-Run development server:
+Run development server (port 8080 is forwarded from the dev container and opens in your browser):
 
 `npm start`
 
