@@ -1,2 +1,2 @@
-bonsai-cli==1.0.12
-microsoft-bonsai-api==0.1.1
+bonsai-cli==1.0.19
+microsoft-bonsai-api==0.1.4
