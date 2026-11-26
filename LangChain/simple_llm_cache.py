@@ -7,9 +7,9 @@ import shutil
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from langchain.load.dump import dumps
-from langchain.load.load import loads
-from langchain.schema import Generation
+from langchain_core.load.dump import dumps
+from langchain_core.load.load import loads
+from langchain_core.outputs import Generation
 from langchain_community.cache import InMemoryCache
 from langchain_core.caches import RETURN_VAL_TYPE
 

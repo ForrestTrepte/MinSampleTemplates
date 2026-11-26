@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 import tiktoken
 from langchain_core.caches import RETURN_VAL_TYPE, BaseCache
-from vertexai.generative_models import GenerativeModel  # type: ignore
+from google import genai
 
 from llm_tokenizer import get_fallback_tokenizer_name
 
@@ -56,7 +56,7 @@ class LlmCacheStatsWrapper:
             defaultdict(self.Stat)
         )
         self.encodings: Dict[str, tiktoken.Encoding] = {}
-        self.generative_models: Dict[str, GenerativeModel] = {}
+        self._genai_client: Optional[genai.Client] = None
 
     def lookup(self, prompt: str, llm_string: str) -> Optional[RETURN_VAL_TYPE]:
         """
@@ -132,7 +132,7 @@ class LlmCacheStatsWrapper:
             # Anthropic doesn't seem to provide a tokenizer. As a hack approximation, we'll use the gpt tokenizer to count tokens.
             return self.count_tokens_gpt("gpt-4", text)
         elif model_name.startswith("gemini-"):
-            return self.count_characters_gemini(model_name, text)
+            return self.count_tokens_gemini(model_name, text)
         else:
             raise ValueError(f"Unknown model name: {model_name}")
 
@@ -148,14 +148,16 @@ class LlmCacheStatsWrapper:
         tokens = len(encoding.encode(text))
         return tokens, self.BillingUnit.TOKENS
 
-    def count_characters_gemini(
+    def count_tokens_gemini(
         self, model_name: str, text: str
     ) -> Tuple[int, BillingUnit]:
-        if model_name not in self.encodings:
-            self.generative_models[model_name] = GenerativeModel(model_name=model_name)
-        generative_model = self.generative_models[model_name]
-        tokens = generative_model.count_tokens(model_name)
-        return tokens.total_billable_characters, self.BillingUnit.CHARACTERS
+        # Uses the Gemini API's (free) token counting endpoint. The client reads the key from GEMINI_API_KEY.
+        if self._genai_client is None:
+            self._genai_client = genai.Client()
+        response = self._genai_client.models.count_tokens(
+            model=model_name, contents=text
+        )
+        return response.total_tokens or 0, self.BillingUnit.TOKENS
 
     def get_model_name_from_llm_string(self, llm_string: str) -> str:
         try:
@@ -244,14 +246,11 @@ class LlmCacheStatsWrapper:
         "claude-3-opus-20240229": (15.0, 75.0, BillingUnit.TOKENS),
         "claude-3-sonnet-20240229": (3.0, 15.0, BillingUnit.TOKENS),
         "claude-3-haiku-20240307": (0.25, 1.25, BillingUnit.TOKENS),
-        # TODO: Higher price for Gemini >128K context window
-        "gemini-1.5-flash-latest": (0.01875, 0.075, BillingUnit.CHARACTERS),
-        "gemini-1.5-flash": (0.01875, 0.075, BillingUnit.CHARACTERS),
-        "gemini-1.5-flash-001": (0.01875, 0.075, BillingUnit.CHARACTERS),
-        "gemini-1.5-pro-latest": (1.25, 3.75, BillingUnit.CHARACTERS),
-        "gemini-1.5-pro": (1.25, 3.75, BillingUnit.CHARACTERS),
-        "gemini-1.5-pro-001": (1.25, 3.75, BillingUnit.CHARACTERS),
-        "gemini-pro-experimental": (1.25, 3.75, BillingUnit.CHARACTERS),
+        # Gemini API paid-tier prices from https://ai.google.dev/gemini-api/docs/pricing
+        # TODO: Higher price for gemini-2.5-pro prompts >200K tokens
+        "gemini-2.5-pro": (1.25, 10.0, BillingUnit.TOKENS),
+        "gemini-3.8-flash": (.75, 3.75, BillingUnit.TOKENS),
+        "gemini-3.5-flash-lite": (0.30, 2.50, BillingUnit.TOKENS),
         "vertexai-claude-3-opus@20240229": (15.0, 75.0, BillingUnit.TOKENS),
         "vertexai-claude-3-sonnet@20240229": (3.0, 15.0, BillingUnit.TOKENS),
         "vertexai-claude-3-haiku@20240307": (0.25, 1.25, BillingUnit.TOKENS),

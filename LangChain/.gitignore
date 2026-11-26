@@ -1,2 +1,3 @@
 /.vscode/
 /llm-cache.json.bak
+/.env

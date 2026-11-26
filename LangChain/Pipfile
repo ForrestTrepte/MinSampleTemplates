@@ -13,8 +13,10 @@ langchain-community = "*"
 openai = "*"
 tiktoken = "*"
 mypy = "*"
+langchain-google-genai = "*"
 
 [dev-packages]
+ipykernel = "*"
 
 [requires]
 python_version = "3.12"
