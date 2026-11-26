@@ -5,7 +5,7 @@ from google.genai import types
 client = genai.Client()
 
 response = client.models.generate_content(
-    model="gemini-3-flash-preview",
+    model="gemini-3.5-flash-lite",
     config=types.GenerateContentConfig(
         system_instruction="You are a marketing expert."
     ),
